@@ -1,0 +1,19 @@
+Fatima Al-Sayed
+Full Stack Developer
+
+Experience
+Full Stack Developer, Nimbus Retail (2020-Present)
+- Split time between frontend (Vue.js) and backend (Python/Flask) work
+- Built some REST API endpoints backed by PostgreSQL
+- Basic familiarity with Docker for local development, not used in production
+- No formal CI/CD pipeline; deployments done manually
+
+Web Developer, Freelance (2018-2020)
+- Built small business websites, mostly PHP and WordPress
+- Occasional Python scripting for data cleanup tasks
+
+Education
+B.S. Computer Science, Cairo University
+
+Skills
+Python, Flask, Vue.js, PHP, PostgreSQL, basic Docker, HTML/CSS

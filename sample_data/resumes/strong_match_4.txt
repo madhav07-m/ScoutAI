@@ -1,0 +1,21 @@
+James Whitfield
+Backend Engineer
+
+Experience
+Backend Engineer, Cascade Robotics (2020-Present)
+- Built and maintained Python backend services (Flask, FastAPI) for fleet management platform
+- Designed PostgreSQL schemas and wrote complex migrations
+- Deployed on AWS EC2 with S3 and RDS; used Docker for containerization
+- Implemented CI/CD pipeline with CircleCI, unit tests using pytest
+- Used SQS for queuing background jobs, exposure to Kubernetes for orchestration
+- On-call responsibilities for production backend systems
+
+Software Developer, Small Batch Software (2017-2020)
+- Built internal REST APIs with Django and MySQL
+- Startup environment, collaborated directly with founders on product decisions
+
+Education
+B.S. Computer Engineering, Georgia Tech
+
+Skills
+Python, Flask, FastAPI, Django, PostgreSQL, MySQL, AWS, Docker, Kubernetes, SQS, CI/CD, pytest

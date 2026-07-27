@@ -1,0 +1,18 @@
+Marcus Webb
+Data Analyst
+
+Experience
+Data Analyst, RetailIQ (2020-Present)
+- Built dashboards and reports using SQL and Tableau
+- Wrote SQL queries against a data warehouse for business reporting
+- No software engineering or API development experience
+- Basic Excel and Python (pandas) for one-off data cleaning tasks, not production code
+
+Junior Analyst, MarketPulse Research (2018-2020)
+- Compiled survey data, built spreadsheets and slide decks for stakeholders
+
+Education
+B.A. Economics, University of Manchester
+
+Skills
+SQL, Tableau, Excel, basic Python (pandas), PowerPoint

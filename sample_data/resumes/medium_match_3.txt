@@ -1,0 +1,20 @@
+Robert Kim
+Backend Developer (Java/Python)
+
+Experience
+Backend Developer, Ledger Systems (2019-Present)
+- Primary language is Java (Spring Boot) for microservices
+- Some Python scripting for internal automation and data pipelines
+- Familiar with PostgreSQL and basic AWS (EC2, S3)
+- Docker used for local development environments
+- Limited exposure to Python web frameworks (Flask, small side projects only)
+
+Software Developer, MetroBank IT (2016-2019)
+- Java-based backend systems, SQL Server database
+- No REST API design experience, mostly internal batch jobs
+
+Education
+B.S. Computer Science, University of Toronto
+
+Skills
+Java, Spring Boot, Python (scripting), PostgreSQL, SQL Server, AWS (basic), Docker

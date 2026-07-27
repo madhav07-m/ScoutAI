@@ -1,0 +1,25 @@
+Daniel Osei
+Software Engineer - Backend
+
+Summary
+5 years building backend services in Python for high-traffic web applications.
+
+Experience
+Backend Engineer, Loop Commerce (2020-Present)
+- Designed REST APIs using Django REST Framework for the order management system
+- Managed PostgreSQL database, including schema migrations and query optimization
+- Containerized services with Docker; deployed on AWS EC2 behind an ALB
+- Used AWS S3 for media storage and RDS for production database
+- Built CI/CD pipeline with Jenkins, wrote unit tests with pytest and Django's test framework
+- Participated in on-call rotation and incident response
+
+Software Engineer, Bright Analytics (2018-2020)
+- Built internal tools and APIs with Flask and MySQL
+- Introduced Kafka for event streaming between microservices
+- Worked in a small 4-person engineering team, startup environment
+
+Education
+B.S. Computer Science, University of Ghana
+
+Skills
+Python, Django, Flask, REST APIs, PostgreSQL, MySQL, Docker, AWS, Kafka, CI/CD, Jenkins, pytest

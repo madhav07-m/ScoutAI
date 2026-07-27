@@ -1,0 +1,19 @@
+Emily Chen
+Frontend Developer
+
+Experience
+Frontend Developer, Pixel Perfect Agency (2021-Present)
+- Built responsive UIs with React and TypeScript
+- Worked with REST APIs built by other teams, no backend development
+- Some exposure to Figma-to-code workflows and design systems
+- No experience with Python, databases, or backend infrastructure
+
+UI Developer, Freelance (2019-2021)
+- Built landing pages with HTML/CSS/JavaScript
+- WordPress theme customization for small business clients
+
+Education
+B.A. Graphic Design, Parsons School of Design
+
+Skills
+React, TypeScript, HTML, CSS, JavaScript, Figma, WordPress

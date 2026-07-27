@@ -1,0 +1,21 @@
+Priya Nair
+Backend Software Engineer
+
+Experience
+Senior Backend Engineer, FinFlow Technologies (2021-Present)
+- Designed and built REST APIs in Python (Django, FastAPI) serving 2M+ requests/day
+- Owned PostgreSQL schema design and migrations for the payments service
+- Deployed services with Docker on AWS EC2, using S3 for file storage and RDS for the database layer
+- Set up CI/CD pipelines with GitHub Actions; wrote unit and integration tests (pytest)
+- On-call rotation for backend services; mentored two junior engineers
+
+Backend Engineer, DataMesh Inc (2019-2021)
+- Built internal REST APIs with Flask and PostgreSQL
+- Introduced RabbitMQ for async job processing between services
+- Worked with Docker and basic Kubernetes deployments
+
+Education
+B.Tech Computer Science, NIT Trichy (2019)
+
+Skills
+Python, Django, FastAPI, Flask, PostgreSQL, MySQL, Docker, AWS (EC2, S3, RDS), Kubernetes, RabbitMQ, CI/CD, pytest

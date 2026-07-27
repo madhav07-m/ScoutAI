@@ -1,0 +1,19 @@
+Tyler Brooks
+IT Support Specialist
+
+Experience
+IT Support Specialist, CloudDesk Corp (2020-Present)
+- Handled internal helpdesk tickets, laptop provisioning, and account resets
+- Basic scripting in PowerShell and Bash for routine admin tasks
+- No software development experience; no Python, no API design
+- Some exposure to AWS console for managing user accounts only
+
+Help Desk Technician, TechServe Solutions (2018-2020)
+- First-line support for internal software issues
+- Documented troubleshooting steps in internal wiki
+
+Education
+Associate Degree, Information Technology, Community College of Denver
+
+Skills
+PowerShell, Bash (basic), Windows Server, Active Directory, AWS Console (basic), Helpdesk tools

@@ -1,0 +1,19 @@
+Alex Turner
+Software Engineer
+
+Experience
+Software Engineer, Webline Studios (2021-Present)
+- Built web applications using Python and JavaScript (React frontend, Flask backend)
+- Worked with MySQL for data storage, some experience with basic REST endpoints
+- Deployed applications on a single AWS EC2 instance manually (no Docker)
+- Limited exposure to automated testing; mostly manual QA before release
+
+Junior Developer, Campus Apps Co (2019-2021)
+- Built small CRUD apps with Django
+- Worked mostly solo on small internal tools
+
+Education
+B.S. Information Technology, Arizona State University
+
+Skills
+Python, JavaScript, Flask, Django, MySQL, basic AWS, React

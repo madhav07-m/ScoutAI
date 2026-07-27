@@ -1,0 +1,22 @@
+Maria Gonzalez
+Senior Backend Developer
+
+Experience
+Senior Backend Developer, Northstar Health (2019-Present)
+- Lead backend engineer for patient records API, built in Python with FastAPI
+- Designed relational schema in PostgreSQL, handling millions of records
+- Deployed on AWS (EC2, RDS, S3), containerized with Docker
+- Set up automated testing and CI/CD using GitHub Actions
+- Introduced Redis for caching frequently accessed endpoints
+- Worked closely with frontend and data teams on integration
+
+Backend Developer, Vela Systems (2016-2019)
+- Built Django-based REST APIs for internal admin tools
+- Used MySQL as primary datastore; wrote unit tests with pytest
+- Worked in a startup of 15 people, wearing many hats
+
+Education
+M.S. Computer Science, Universidad de Chile
+
+Skills
+Python, FastAPI, Django, PostgreSQL, MySQL, Redis, Docker, AWS, CI/CD, pytest, REST API design

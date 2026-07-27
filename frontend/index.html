@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scout AI — Analyzing your resumes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAFAF8;
+    --bg-wash:#EAF7EE;
+    --ink:#14171A;
+    --muted:#6E7274;
+    --muted-2:#9A9D9E;
+    --green-700:#0F8A3C;
+    --green-600:#17A34A;
+    --green-500:#28C76A;
+    --green-100:#E6F6EA;
+    --green-050:#F2FAF4;
+    --line:#E7E5E0;
+    --white:#FFFFFF;
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:10px;
+    --shadow-soft: 0 1px 2px rgba(20,23,26,0.04), 0 8px 24px rgba(20,23,26,0.05);
+  }
+
+  *,*::before,*::after{ box-sizing:border-box; }
+
+  html{ scroll-behavior:smooth; }
+
+  body{
+    margin:0;
+    font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+
+  .display{
+    font-family:'Space Grotesk', 'Inter', sans-serif;
+    letter-spacing:-0.02em;
+  }
+
+  a{ color:inherit; text-decoration:none; }
+
+  /* ---------- ambient background ---------- */
+  .bg-blob{
+    position:fixed;
+    top:-220px; left:-260px;
+    width:640px; height:640px;
+    border-radius:50%;
+    background: radial-gradient(circle at 35% 35%, var(--bg-wash), transparent 68%);
+    z-index:0;
+    pointer-events:none;
+  }
+
+  .bg-network{
+    position:fixed;
+    inset:0;
+    z-index:0;
+    pointer-events:none;
+    opacity:0.5;
+  }
+
+  /* ---------- nav ---------- */
+  header.nav{
+    position:relative;
+    z-index:10;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding: 18px clamp(20px, 4vw, 56px);
+    border-bottom:1px solid var(--line);
+    background:rgba(250,250,248,0.85);
+    backdrop-filter:blur(8px);
+  }
+
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:19px;
+    font-weight:700;
+  }
+  .brand .mark{
+    width:32px; height:32px;
+    border-radius:9px;
+    background:linear-gradient(135deg, var(--green-500), var(--green-700));
+    display:flex; align-items:center; justify-content:center;
+    color:#fff;
+    box-shadow: var(--shadow-soft);
+  }
+  .brand .ai{ color:var(--green-600); }
+
+  nav.links{
+    display:flex;
+    gap:36px;
+    font-size:14.5px;
+    font-weight:500;
+    color:var(--ink);
+  }
+  nav.links a{
+    position:relative;
+    padding:6px 2px;
+    color:var(--muted);
+    transition:color .2s ease;
+  }
+  nav.links a.active{ color:var(--ink); }
+  nav.links a.active::after{
+    content:"";
+    position:absolute;
+    left:0; right:0; bottom:-2px;
+    height:2px;
+    background:var(--green-600);
+    border-radius:2px;
+  }
+  nav.links a:hover{ color:var(--ink); }
+
+  .nav-right{
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+
+  .btn-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:9px 18px;
+    border-radius:999px;
+    border:1px solid var(--green-600);
+    color:var(--green-600);
+    font-size:14px;
+    font-weight:600;
+    background:transparent;
+    cursor:pointer;
+    transition: background .18s ease, color .18s ease, transform .18s ease;
+  }
+  .btn-pill:hover{ background:var(--green-050); transform:translateY(-1px); }
+
+  .avatar{
+    width:34px; height:34px;
+    border-radius:50%;
+    background:var(--green-100);
+    color:var(--green-700);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700;
+    font-size:13.5px;
+  }
+  .caret{ color:var(--muted-2); font-size:11px; }
+
+  /* ---------- hero ---------- */
+  main{
+    position:relative;
+    z-index:2;
+    max-width:1280px;
+    margin:0 auto;
+    padding: clamp(48px, 8vw, 96px) clamp(20px, 4vw, 56px) 80px;
+    display:grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap:clamp(32px, 6vw, 96px);
+    align-items:center;
+  }
+
+  .eyebrow{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-size:12.5px;
+    font-weight:700;
+    letter-spacing:0.09em;
+    text-transform:uppercase;
+    color:var(--green-600);
+    margin-bottom:22px;
+  }
+  .eyebrow .dot{
+    width:7px; height:7px;
+    border-radius:50%;
+    background:var(--green-500);
+    box-shadow:0 0 0 4px var(--green-100);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{ box-shadow:0 0 0 4px var(--green-100); }
+    50%{ box-shadow:0 0 0 7px var(--green-050); }
+  }
+
+  h1.headline{
+    font-size:clamp(38px, 4.4vw, 58px);
+    line-height:1.04;
+    font-weight:700;
+    margin:0 0 22px;
+  }
+  h1.headline .accent-dot{ color:var(--green-500); }
+
+  p.lede{
+    font-size:17px;
+    line-height:1.6;
+    color:var(--muted);
+    max-width:440px;
+    margin:0 0 34px;
+  }
+
+  .feature-list{
+    display:flex;
+    flex-direction:column;
+    border-top:1px solid var(--line);
+  }
+  .feature-item{
+    display:flex;
+    align-items:flex-start;
+    gap:16px;
+    padding:18px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .feature-icon{
+    flex:none;
+    width:34px; height:34px;
+    border-radius:10px;
+    background:var(--green-050);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--green-600);
+  }
+  .feature-icon svg{ width:17px; height:17px; }
+  .feature-text .t{
+    font-size:15px;
+    font-weight:600;
+    margin-bottom:2px;
+  }
+  .feature-text .d{
+    font-size:13.5px;
+    color:var(--muted);
+  }
+
+  .privacy-note{
+    margin-top:26px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background:var(--green-050);
+    border:1px solid var(--green-100);
+    border-radius:var(--radius-md);
+    padding:14px 18px;
+    font-size:13.5px;
+    color:var(--green-700);
+    font-weight:600;
+  }
+  .privacy-note svg{ flex:none; width:18px; height:18px; }
+
+  /* ---------- ring visual ---------- */
+  .visual{
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:440px;
+  }
+
+  .ring-wrap{
+    position:relative;
+    width:min(420px, 86vw);
+    aspect-ratio:1/1;
+  }
+
+  .ring-outline{
+    position:absolute;
+    inset:0;
+    border-radius:50%;
+    border:1.5px solid var(--line);
+    background:var(--white);
+    box-shadow: var(--shadow-soft);
+    overflow:hidden;
+  }
+
+  .ring-fill{
+    position:absolute;
+    left:0; right:0; bottom:0;
+    height:0%;
+    background: linear-gradient(180deg, var(--green-500) 0%, var(--green-600) 100%);
+    transition:height 1.9s cubic-bezier(.22,.9,.3,1);
+  }
+  .ring-fill svg{
+    position:absolute;
+    top:-1px; left:0;
+    width:200%;
+    height:26px;
+    animation: wave 5.2s linear infinite;
+  }
+  @keyframes wave{
+    from{ transform:translateX(0); }
+    to{ transform:translateX(-50%); }
+  }
+
+  .ring-label{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:clamp(48px, 8vw, 72px);
+    color:var(--ink);
+    z-index:2;
+  }
+  .ring-label .pct{ font-size:0.55em; margin-left:2px; font-weight:600; }
+
+  .status-row{
+    position:absolute;
+    bottom:-64px;
+    left:50%;
+    transform:translateX(-50%);
+    text-align:center;
+    width:340px;
+  }
+  .status-line{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    font-size:15.5px;
+    font-weight:600;
+    color:var(--ink);
+  }
+  .status-line svg{ color:var(--green-600); width:16px; height:16px; }
+  .status-sub{
+    margin-top:6px;
+    font-size:13px;
+    color:var(--muted-2);
+  }
+
+  /* floating dots decoration */
+  .node{
+    position:absolute;
+    width:5px; height:5px;
+    border-radius:50%;
+    background:var(--line);
+  }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 900px){
+    main{
+      grid-template-columns:1fr;
+      padding-bottom:120px;
+    }
+    nav.links{ display:none; }
+    .visual{ order:-1; min-height:340px; margin-bottom:12px; }
+    p.lede{ max-width:none; }
+    .status-row{ position:static; transform:none; width:auto; margin-top:28px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .eyebrow .dot{ animation:none; }
+    .ring-fill svg{ animation:none; }
+    .ring-fill{ transition:none; }
+  }
+
+  /* ---------- upload form ---------- */
+  .upload-card{
+    background:var(--white);
+    border:1px solid var(--line);
+    border-radius:var(--radius-lg);
+    padding:26px;
+    box-shadow:var(--shadow-soft);
+  }
+  .field{ margin-bottom:18px; }
+  .field label{
+    display:block;
+    font-size:13px;
+    font-weight:600;
+    color:var(--ink);
+    margin-bottom:8px;
+  }
+  .field .hint{ font-size:12.5px; color:var(--muted-2); margin-top:6px; }
+  .file-drop{
+    border:1.5px dashed var(--line);
+    border-radius:var(--radius-md);
+    padding:16px;
+    background:var(--green-050);
+    font-size:14px;
+    color:var(--muted);
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .file-drop:hover{ border-color:var(--green-500); }
+  .file-drop input{ display:none; }
+  .file-list{ margin-top:8px; font-size:13px; color:var(--ink); }
+  .file-list div{ padding:2px 0; }
+  input[type="password"], input[type="text"]{
+    width:100%;
+    padding:11px 14px;
+    border-radius:var(--radius-sm);
+    border:1px solid var(--line);
+    font-family:'Inter', sans-serif;
+    font-size:14px;
+    background:var(--white);
+  }
+  input[type="password"]:focus, input[type="text"]:focus{ outline:2px solid var(--green-100); border-color:var(--green-500); }
+  .btn-primary{
+    width:100%;
+    padding:13px 18px;
+    border-radius:999px;
+    border:none;
+    background:var(--green-600);
+    color:#fff;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    transition:background .15s ease, transform .15s ease;
+  }
+  .btn-primary:hover:not(:disabled){ background:var(--green-700); transform:translateY(-1px); }
+  .btn-primary:disabled{ background:var(--muted-2); cursor:not-allowed; }
+  .form-error{
+    margin-top:14px;
+    padding:12px 16px;
+    border-radius:var(--radius-sm);
+    background:#FDECEC;
+    color:#B4232C;
+    font-size:13.5px;
+    display:none;
+  }
+
+  /* ---------- results ---------- */
+  #resultsSection{ display:none; position:relative; z-index:2; max-width:1100px; margin:0 auto; padding:0 clamp(20px,4vw,56px) 96px; }
+  .results-header{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; flex-wrap:wrap; gap:8px; }
+  .results-caption{ font-size:13.5px; color:var(--muted); margin-bottom:22px; }
+  .metric-row{ display:flex; gap:16px; margin-bottom:26px; flex-wrap:wrap; }
+  .metric-card{ flex:1; min-width:140px; background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md); padding:16px 20px; box-shadow:var(--shadow-soft); }
+  .metric-card .n{ font-family:'Space Grotesk',sans-serif; font-size:28px; font-weight:700; }
+  .metric-card .l{ font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .metric-card.strong .n{ color:var(--green-600); }
+  .metric-card.weak .n{ color:#C4433C; }
+
+  table.rank-table{ width:100%; border-collapse:collapse; background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md); overflow:hidden; margin-bottom:30px; }
+  table.rank-table th, table.rank-table td{ text-align:left; padding:12px 16px; font-size:14px; border-bottom:1px solid var(--line); }
+  table.rank-table th{ background:var(--green-050); font-weight:600; color:var(--muted); font-size:12.5px; text-transform:uppercase; letter-spacing:0.04em; }
+  .badge{ display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:12.5px; font-weight:700; }
+  .badge.Strong{ background:var(--green-100); color:var(--green-700); }
+  .badge.Average{ background:#FFF4DE; color:#9A6B10; }
+  .badge.Weak{ background:#FDECEC; color:#B4232C; }
+
+  .notice{ font-size:13px; padding:12px 16px; border-radius:var(--radius-sm); margin-bottom:16px; }
+  .notice.warn{ background:#FFF4DE; color:#8A5E0C; }
+  .notice.info{ background:var(--green-050); color:var(--green-700); }
+
+  .gap-card{ background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md); margin-bottom:14px; overflow:hidden; }
+  .gap-card summary{ cursor:pointer; padding:16px 20px; font-weight:600; font-size:14.5px; list-style:none; display:flex; justify-content:space-between; align-items:center; }
+  .gap-card summary::-webkit-details-marker{ display:none; }
+  .gap-body{ padding:0 20px 20px; font-size:13.5px; color:var(--ink); }
+  .gap-body h4{ font-size:12.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--muted); margin:16px 0 6px; }
+  .gap-body ul{ margin:0; padding-left:18px; }
+  .gap-body li{ margin-bottom:4px; }
+  .section-match{ font-size:12.5px; color:var(--muted); margin-bottom:4px; }
+  .gap-actions{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .btn-small{ padding:8px 14px; border-radius:999px; border:1px solid var(--green-600); color:var(--green-600); background:transparent; font-size:13px; font-weight:600; cursor:pointer; }
+  .btn-small:hover{ background:var(--green-050); }
+  .btn-small.download{ border-color:var(--line); color:var(--ink); text-decoration:none; display:inline-block; }
+</style>
+</head>
+<body>
+
+  <div class="bg-blob"></div>
+  <svg class="bg-network" width="100%" height="100%" style="position:fixed;inset:0;">
+    <g stroke="#D9D9D9" stroke-width="1" opacity="0.5">
+      <line x1="82%" y1="18%" x2="93%" y2="10%"/>
+      <line x1="93%" y1="10%" x2="96%" y2="24%"/>
+      <line x1="82%" y1="18%" x2="88%" y2="32%"/>
+      <line x1="88%" y1="32%" x2="96%" y2="24%"/>
+      <line x1="70%" y1="70%" x2="80%" y2="78%"/>
+      <line x1="80%" y1="78%" x2="76%" y2="92%"/>
+      <line x1="70%" y1="70%" x2="62%" y2="86%"/>
+      <line x1="62%" y1="86%" x2="76%" y2="92%"/>
+      <line x1="92%" y1="60%" x2="99%" y2="70%"/>
+    </g>
+    <g fill="#C9C7C1">
+      <circle cx="82%" cy="18%" r="3"/>
+      <circle cx="93%" cy="10%" r="3"/>
+      <circle cx="96%" cy="24%" r="3"/>
+      <circle cx="88%" cy="32%" r="3"/>
+      <circle cx="70%" cy="70%" r="3"/>
+      <circle cx="80%" cy="78%" r="3"/>
+      <circle cx="76%" cy="92%" r="3"/>
+      <circle cx="62%" cy="86%" r="3"/>
+      <circle cx="92%" cy="60%" r="3"/>
+      <circle cx="99%" cy="70%" r="3"/>
+    </g>
+  </svg>
+
+  <header class="nav">
+    <div class="brand">
+      <span class="mark">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h9l7 7v9H4z"/><path d="M13 4v7h7"/></svg>
+      </span>
+      <span>Scout<span class="ai"> AI</span></span>
+    </div>
+    <nav class="links">
+      <a href="index.html" class="active">Dashboard</a>
+      <a href="companies.html">Companies</a>
+    </nav>
+    <div class="nav-right">
+      <button class="btn-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New Analysis
+      </button>
+      <div class="avatar">M</div>
+      <span class="caret">▾</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero-copy" id="formSection">
+      <div class="eyebrow"><span class="dot"></span> Ready when you are</div>
+      <h1 class="headline display">Rank your<br>resumes<span class="accent-dot">.</span></h1>
+      <p class="lede">Upload a job description and a batch of resumes. We'll semantically match and rank every candidate, then run a grounded gap analysis on each.</p>
+
+      <form id="rankForm" class="upload-card">
+        <div class="field">
+          <label for="jdFile">Job description (PDF, DOCX, or TXT)</label>
+          <label class="file-drop" id="jdDrop">
+            <input type="file" id="jdFile" accept=".pdf,.docx,.txt" required>
+            <span id="jdDropText">Click to choose a file…</span>
+          </label>
+        </div>
+        <div class="field">
+          <label for="resumeFiles">Resumes (upload multiple — PDF, DOCX, or TXT)</label>
+          <label class="file-drop" id="resumeDrop">
+            <input type="file" id="resumeFiles" accept=".pdf,.docx,.txt" multiple required>
+            <span id="resumeDropText">Click to choose files…</span>
+          </label>
+          <div class="file-list" id="resumeFileList"></div>
+        </div>
+        <div class="field">
+          <label for="geminiKey">Gemini API key <span style="font-weight:400;color:var(--muted-2);">(optional — enables gap analysis &amp; LLM score)</span></label>
+          <input type="password" id="geminiKey" placeholder="Leave blank to use GEMINI_API_KEY from the server .env, if set">
+        </div>
+        <button type="submit" class="btn-primary" id="submitBtn">Rank resumes</button>
+        <div class="form-error" id="formError"></div>
+      </form>
+
+      <div class="privacy-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        Your files are sent only to your own backend — never to a third party.
+      </div>
+    </section>
+
+    <section class="visual" id="visualSection" style="display:none;">
+      <div class="ring-wrap">
+        <div class="ring-outline">
+          <div class="ring-fill" id="ringFill">
+            <svg viewBox="0 0 200 20" preserveAspectRatio="none">
+              <path d="M0 10 Q 25 0 50 10 T 100 10 T 150 10 T 200 10 V20 H0 Z" fill="rgba(255,255,255,0.28)"/>
+            </svg>
+          </div>
+        </div>
+        <div class="ring-label"><span id="pctNum">0</span><span class="pct">%</span></div>
+        <div class="status-row">
+          <div class="status-line">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+            <span id="statusText">Parsing documents…</span>
+          </div>
+          <div class="status-sub">This may take a few moments. Please don't close this window.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section id="resultsSection">
+    <div class="results-header">
+      <h2 class="display" style="margin:0;font-size:26px;">Ranking results</h2>
+      <button class="btn-pill" id="startOverBtn">↺ Start over</button>
+    </div>
+    <p class="results-caption">Fit Score = embedding-based cosine similarity to the JD (0–100). LLM Score = Gemini's independent judgment, shown when a Gemini key is provided — the two can genuinely disagree.</p>
+
+    <div id="noticesContainer"></div>
+
+    <div class="metric-row" id="metricRow"></div>
+
+    <table class="rank-table">
+      <thead><tr><th>Resume</th><th>Fit score</th><th>Match</th><th>LLM score</th></tr></thead>
+      <tbody id="rankTableBody"></tbody>
+    </table>
+
+    <h3 class="display" style="font-size:19px;">Gap analysis <span style="color:var(--muted);font-weight:400;font-size:14px;">(Gemini, grounded in matched sections)</span></h3>
+    <div id="gapContainer"></div>
+  </section>
+
+  <script>
+    const API_BASE = ""; // same-origin: the backend serves this page too
+    let currentSessionId = null;
+
+    // ---- file pickers ----
+    const jdFile = document.getElementById('jdFile');
+    const jdDropText = document.getElementById('jdDropText');
+    jdFile.addEventListener('change', ()=>{
+      jdDropText.textContent = jdFile.files[0] ? jdFile.files[0].name : "Click to choose a file…";
+    });
+
+    const resumeFiles = document.getElementById('resumeFiles');
+    const resumeDropText = document.getElementById('resumeDropText');
+    const resumeFileList = document.getElementById('resumeFileList');
+    resumeFiles.addEventListener('change', ()=>{
+      const files = Array.from(resumeFiles.files);
+      resumeDropText.textContent = files.length ? `${files.length} file${files.length===1?'':'s'} selected` : "Click to choose files…";
+      resumeFileList.innerHTML = files.map(f=>`<div>📄 ${f.name}</div>`).join("");
+    });
+
+    // ---- ring progress (indeterminate — mirrors real request stages) ----
+    function animateRing(fromPct, toPct, statusMsg){
+      const fill = document.getElementById('ringFill');
+      const num = document.getElementById('pctNum');
+      document.getElementById('statusText').textContent = statusMsg;
+      fill.style.height = toPct + '%';
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduced){ num.textContent = toPct; return; }
+      let start = null;
+      const duration = 1200;
+      function step(ts){
+        if(!start) start = ts;
+        const progress = Math.min((ts - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        num.textContent = Math.round(fromPct + eased * (toPct - fromPct));
+        if (progress < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // ---- submit ----
+    document.getElementById('rankForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const errEl = document.getElementById('formError');
+      errEl.style.display = "none";
+
+      if (!jdFile.files[0] || resumeFiles.files.length === 0){
+        errEl.textContent = "Please choose a job description and at least one resume.";
+        errEl.style.display = "block";
+        return;
+      }
+
+      document.getElementById('formSection').style.display = "none";
+      document.getElementById('visualSection').style.display = "flex";
+      document.getElementById('resultsSection').style.display = "none";
+      animateRing(0, 30, "Parsing documents…");
+
+      const formData = new FormData();
+      formData.append("jd", jdFile.files[0]);
+      Array.from(resumeFiles.files).forEach(f => formData.append("resumes", f));
+      const geminiKey = document.getElementById('geminiKey').value.trim();
+      if (geminiKey) formData.append("gemini_key", geminiKey);
+
+      setTimeout(()=> animateRing(30, 65, "Generating semantic embeddings…"), 300);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/rank`, { method: "POST", body: formData });
+        if (!res.ok){
+          const body = await res.json().catch(()=>({detail:"Unknown error"}));
+          throw new Error(body.detail || `Request failed (${res.status})`);
+        }
+        animateRing(65, 100, "Ranking complete.");
+        const data = await res.json();
+        currentSessionId = data.session_id;
+        setTimeout(()=> renderResults(data), 500);
+      } catch (err) {
+        document.getElementById('visualSection').style.display = "none";
+        document.getElementById('formSection').style.display = "block";
+        errEl.textContent = "Ranking failed: " + err.message;
+        errEl.style.display = "block";
+      }
+    });
+
+    document.getElementById('startOverBtn').addEventListener('click', ()=>{
+      document.getElementById('resultsSection').style.display = "none";
+      document.getElementById('formSection').style.display = "block";
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+
+    // ---- results rendering ----
+    function renderResults(data){
+      document.getElementById('visualSection').style.display = "none";
+      document.getElementById('resultsSection').style.display = "block";
+
+      const notices = document.getElementById('noticesContainer');
+      notices.innerHTML = "";
+      if (data.low_extraction_docs && data.low_extraction_docs.length){
+        notices.innerHTML += `<div class="notice warn">⚠️ Very little text was extracted from: ${data.low_extraction_docs.join(", ")}. A low fit score for these may reflect a parsing issue rather than a weak match.</div>`;
+      }
+      if (data.ocr_used_docs && data.ocr_used_docs.length){
+        notices.innerHTML += `<div class="notice info">🔎 OCR fallback was used for: ${data.ocr_used_docs.join(", ")} — worth a quick manual check for recognition errors.</div>`;
+      }
+      if (!data.has_gemini_key){
+        notices.innerHTML += `<div class="notice info">Add a Gemini API key above to get LLM-assessed scores and gap analysis.</div>`;
+      }
+      if (data.gemini_error){
+        notices.innerHTML += `<div class="notice warn">Gemini setup failed: ${data.gemini_error}</div>`;
+      }
+
+      const metricRow = document.getElementById('metricRow');
+      metricRow.innerHTML = `
+        <div class="metric-card strong"><div class="n">${data.counts.Strong}</div><div class="l">🟢 Strong match</div></div>
+        <div class="metric-card"><div class="n">${data.counts.Average}</div><div class="l">🟡 Average match</div></div>
+        <div class="metric-card weak"><div class="n">${data.counts.Weak}</div><div class="l">🔴 Weak match</div></div>
+      `;
+
+      const tbody = document.getElementById('rankTableBody');
+      tbody.innerHTML = data.ranked.map(r => `
+        <tr>
+          <td>${r.doc_name}</td>
+          <td>${r.fit_score}</td>
+          <td><span class="badge ${r.match_category}">${r.match_category}</span></td>
+          <td>${r.llm_score != null ? r.llm_score : '—'}</td>
+        </tr>
+      `).join("");
+
+      const gapContainer = document.getElementById('gapContainer');
+      gapContainer.innerHTML = data.ranked.map(r => gapCardHtml(r)).join("");
+
+      data.ranked.forEach(r => wireGapCard(r.doc_name));
+    }
+
+    function sectionMatchesHtml(sectionMatches){
+      return Object.entries(sectionMatches).map(([jdSection, m]) =>
+        `<div class="section-match">JD <code>${jdSection}</code> ↔ Resume <code>${m.resume_section}</code> (sim=${m.similarity})</div>`
+      ).join("");
+    }
+
+    function gapReportBodyHtml(doc_name, report){
+      if (!report) return `<div id="gap-report-${cssEscape(doc_name)}"></div>`;
+      let html = "";
+      if (report.fit_score != null) html += `<p><strong>LLM-assessed fit score:</strong> ${report.fit_score}/100</p>`;
+      if (report.strengths && report.strengths.length) html += `<h4>✅ Strengths</h4><ul>${report.strengths.map(s=>`<li>${s}</li>`).join("")}</ul>`;
+      if (report.gaps && report.gaps.length) html += `<h4>⚠️ Gaps</h4><ul>${report.gaps.map(s=>`<li>${s}</li>`).join("")}</ul>`;
+      if (report.suggestions && report.suggestions.length) html += `<h4>💡 Suggestions</h4><ul>${report.suggestions.map(s=>`<li>${s}</li>`).join("")}</ul>`;
+      if (report._raw) html += `<h4>Raw LLM output (parsing failed)</h4><pre style="white-space:pre-wrap;font-size:12px;">${report._raw}</pre>`;
+      return `<div id="gap-report-${cssEscape(doc_name)}">${html}</div>`;
+    }
+
+    function cssEscape(s){ return s.replace(/[^a-zA-Z0-9_-]/g, "_"); }
+
+    function gapCardHtml(r){
+      const id = cssEscape(r.doc_name);
+      return `
+        <details class="gap-card">
+          <summary>${r.doc_name} — fit score ${r.fit_score} (${r.match_category})</summary>
+          <div class="gap-body">
+            ${sectionMatchesHtml(r.section_matches)}
+            ${gapReportBodyHtml(r.doc_name, r.gap_report)}
+            <div class="gap-actions">
+              <button class="btn-small" data-doc="${r.doc_name}" data-action="regen">
+                ${r.gap_report ? 'Regenerate gap analysis' : 'Generate gap analysis'}
+              </button>
+              ${r.gap_report ? `<a class="btn-small download" href="${API_BASE}/api/rank/${currentSessionId}/gap-analysis/${encodeURIComponent(r.doc_name)}/pdf" target="_blank">📄 Download PDF</a>` : ''}
+            </div>
+          </div>
+        </details>
+      `;
+    }
+
+    function wireGapCard(doc_name){
+      const btn = document.querySelector(`button[data-doc="${CSS.escape(doc_name)}"][data-action="regen"]`);
+      if (!btn) return;
+      btn.addEventListener('click', async ()=>{
+        btn.disabled = true;
+        const original = btn.textContent;
+        btn.textContent = "Calling Gemini…";
+        try {
+          const geminiKey = document.getElementById('geminiKey').value.trim();
+          const fd = new FormData();
+          if (geminiKey) fd.append("gemini_key", geminiKey);
+          const res = await fetch(`${API_BASE}/api/rank/${currentSessionId}/gap-analysis/${encodeURIComponent(doc_name)}`, { method: "POST", body: fd });
+          if (!res.ok){
+            const body = await res.json().catch(()=>({detail:"Unknown error"}));
+            throw new Error(body.detail || "Gap analysis failed");
+          }
+          const data = await res.json();
+          const card = btn.closest('.gap-card');
+          const summary = card.querySelector('summary');
+          const body = card.querySelector('.gap-body');
+          body.innerHTML = `
+            ${body.querySelector('.section-match') ? sectionMatchesHtml(currentSectionMatchesFor(doc_name)) : ''}
+            ${gapReportBodyHtml(doc_name, data.gap_report)}
+            <div class="gap-actions">
+              <button class="btn-small" data-doc="${doc_name}" data-action="regen">Regenerate gap analysis</button>
+              <a class="btn-small download" href="${API_BASE}/api/rank/${currentSessionId}/gap-analysis/${encodeURIComponent(doc_name)}/pdf" target="_blank">📄 Download PDF</a>
+            </div>
+          `;
+          card.open = true;
+          wireGapCard(doc_name);
+        } catch (err) {
+          alert(err.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = original;
+        }
+      });
+    }
+
+    let _lastRankedData = null;
+    function currentSectionMatchesFor(doc_name){
+      if (!_lastRankedData) return {};
+      const row = _lastRankedData.ranked.find(r => r.doc_name === doc_name);
+      return row ? row.section_matches : {};
+    }
+    const _origRenderResults = renderResults;
+    renderResults = function(data){ _lastRankedData = data; _origRenderResults(data); };
+  </script>
+
+</body>
+</html>

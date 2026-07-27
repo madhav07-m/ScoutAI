@@ -1,0 +1,18 @@
+Sophie Laurent
+Mobile App Developer (iOS)
+
+Experience
+iOS Developer, AppCraft Studio (2019-Present)
+- Built native iOS applications using Swift and SwiftUI
+- Integrated with backend REST APIs built by other teams (consumer only)
+- No backend development experience; no Python
+- Used Firebase for push notifications and basic auth
+
+Junior iOS Developer, Freelance (2017-2019)
+- Built small iOS apps for local businesses
+
+Education
+B.S. Computer Science, Sorbonne University
+
+Skills
+Swift, SwiftUI, Xcode, Firebase, iOS SDK, Objective-C (legacy projects)

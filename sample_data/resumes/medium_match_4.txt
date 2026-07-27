@@ -1,0 +1,19 @@
+Grace Adeyemi
+Backend Engineer (Node.js primary)
+
+Experience
+Backend Engineer, Swiftcart (2020-Present)
+- Primary stack is Node.js/Express for REST APIs
+- Some Python experience from a previous data engineering role
+- MySQL as primary database; basic AWS (EC2, RDS) exposure
+- Docker used for containerizing Node services, some Python scripts containerized too
+- Wrote unit tests with Jest (JS) and a handful with pytest (Python)
+
+Data Engineer Intern, Insight Analytics (2019)
+- Wrote Python ETL scripts, some exposure to PostgreSQL
+
+Education
+B.S. Software Engineering, University of Lagos
+
+Skills
+Node.js, Express, Python (secondary), MySQL, PostgreSQL, AWS, Docker, Jest, pytest (basic)

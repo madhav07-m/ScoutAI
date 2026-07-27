@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scout AI — Companies hiring now</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAFAF8;
+    --bg-wash:#EAF7EE;
+    --ink:#14171A;
+    --muted:#6E7274;
+    --muted-2:#9A9D9E;
+    --green-700:#0F8A3C;
+    --green-600:#17A34A;
+    --green-500:#28C76A;
+    --green-100:#E6F6EA;
+    --green-050:#F2FAF4;
+    --red-600:#D64545;
+    --red-100:#FCEBEB;
+    --line:#E7E5E0;
+    --white:#FFFFFF;
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:10px;
+    --shadow-soft: 0 1px 2px rgba(20,23,26,0.04), 0 8px 24px rgba(20,23,26,0.05);
+  }
+
+  *,*::before,*::after{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+
+  body{
+    margin:0;
+    font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .display{ font-family:'Space Grotesk','Inter',sans-serif; letter-spacing:-0.02em; }
+  a{ color:inherit; text-decoration:none; }
+
+  .bg-blob{
+    position:fixed; top:-220px; left:-260px;
+    width:640px; height:640px; border-radius:50%;
+    background: radial-gradient(circle at 35% 35%, var(--bg-wash), transparent 68%);
+    z-index:0; pointer-events:none;
+  }
+
+  /* ---------- nav (shared) ---------- */
+  header.nav{
+    position:sticky; top:0; z-index:20;
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 18px clamp(20px, 4vw, 56px);
+    border-bottom:1px solid var(--line);
+    background:rgba(250,250,248,0.85);
+    backdrop-filter:blur(8px);
+  }
+  .brand{ display:flex; align-items:center; gap:10px; font-size:19px; font-weight:700; }
+  .brand .mark{
+    width:32px; height:32px; border-radius:9px;
+    background:linear-gradient(135deg, var(--green-500), var(--green-700));
+    display:flex; align-items:center; justify-content:center; color:#fff;
+    box-shadow: var(--shadow-soft);
+  }
+  .brand .ai{ color:var(--green-600); }
+  nav.links{ display:flex; gap:36px; font-size:14.5px; font-weight:500; }
+  nav.links a{ position:relative; padding:6px 2px; color:var(--muted); transition:color .2s ease; }
+  nav.links a.active{ color:var(--ink); }
+  nav.links a.active::after{
+    content:""; position:absolute; left:0; right:0; bottom:-2px;
+    height:2px; background:var(--green-600); border-radius:2px;
+  }
+  nav.links a:hover{ color:var(--ink); }
+  .nav-right{ display:flex; align-items:center; gap:14px; }
+  .btn-pill{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:9px 18px; border-radius:999px; border:1px solid var(--green-600);
+    color:var(--green-600); font-size:14px; font-weight:600; background:transparent;
+    cursor:pointer; transition: background .18s ease, transform .18s ease;
+  }
+  .btn-pill:hover{ background:var(--green-050); transform:translateY(-1px); }
+  .avatar{
+    width:34px; height:34px; border-radius:50%; background:var(--green-100);
+    color:var(--green-700); display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:13.5px;
+  }
+  .caret{ color:var(--muted-2); font-size:11px; }
+
+  /* ---------- page header ---------- */
+  main{
+    position:relative; z-index:1;
+    max-width:1280px; margin:0 auto;
+    padding: clamp(36px, 6vw, 64px) clamp(20px, 4vw, 56px) 100px;
+  }
+
+  .page-head{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap:24px; margin-bottom:30px; flex-wrap:wrap;
+  }
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size:12.5px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase;
+    color:var(--green-600); margin-bottom:14px;
+  }
+  .eyebrow .dot{
+    width:7px; height:7px; border-radius:50%; background:var(--green-500);
+    box-shadow:0 0 0 4px var(--green-100);
+  }
+  h1.headline{ font-size:clamp(30px, 3.4vw, 42px); font-weight:700; margin:0 0 8px; }
+  p.sub{ font-size:15px; color:var(--muted); margin:0; max-width:560px; line-height:1.55; }
+
+  .refresh-meta{
+    text-align:right; font-size:13px; color:var(--muted-2);
+  }
+  .refresh-meta button{
+    display:inline-flex; align-items:center; gap:6px;
+    margin-top:8px; padding:8px 14px; border-radius:999px;
+    border:1px solid var(--line); background:var(--white);
+    font-size:13px; font-weight:600; color:var(--ink); cursor:pointer;
+    transition:border-color .18s ease, background .18s ease;
+  }
+  .refresh-meta button:hover{ border-color:var(--green-600); background:var(--green-050); }
+  .refresh-meta button svg{ width:13px; height:13px; }
+
+  /* ---------- search + filter bar ---------- */
+  .search-bar{
+    display:flex; gap:12px; flex-wrap:wrap;
+    background:var(--white); border:1px solid var(--line);
+    border-radius:var(--radius-md); padding:10px; margin-bottom:28px;
+    box-shadow: var(--shadow-soft);
+  }
+  .search-field{
+    flex:1 1 260px; display:flex; align-items:center; gap:10px;
+    padding:8px 12px; border-radius:var(--radius-sm);
+  }
+  .search-field svg{ width:16px; height:16px; color:var(--muted-2); flex:none; }
+  .search-field input{
+    border:none; outline:none; font-size:14.5px; font-family:'Inter',sans-serif;
+    width:100%; background:transparent; color:var(--ink);
+  }
+  .search-field input::placeholder{ color:var(--muted-2); }
+  .search-divider{ width:1px; background:var(--line); margin:6px 0; }
+  .search-note{
+    align-self:center; font-size:12px; color:var(--muted-2); padding:0 8px 0 2px;
+  }
+
+  /* ---------- stat strip ---------- */
+  .stat-strip{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:36px;
+  }
+  .stat-card{
+    background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md);
+    padding:18px 20px;
+  }
+  .stat-card .n{ font-family:'Space Grotesk',sans-serif; font-size:30px; font-weight:700; }
+  .stat-card .l{ font-size:13px; color:var(--muted); margin-top:2px; }
+  .stat-card.green .n{ color:var(--green-600); }
+
+  /* ---------- company grid ---------- */
+  .grid-head{
+    display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;
+  }
+  .grid-head h2{ font-size:15px; font-weight:700; margin:0; }
+  .grid-head span{ font-size:13px; color:var(--muted-2); }
+
+  .company-grid{
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:16px;
+  }
+
+  .company-card{
+    background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md);
+    padding:20px; cursor:pointer;
+    transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+  }
+  .company-card:hover{
+    border-color:var(--green-500); transform:translateY(-2px); box-shadow:var(--shadow-soft);
+  }
+  .company-card.selected{ border-color:var(--green-600); box-shadow:var(--shadow-soft); }
+
+  .company-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .company-logo{
+    width:38px; height:38px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px;
+    color:var(--white);
+  }
+  .flag{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:11.5px; font-weight:700; padding:4px 9px; border-radius:999px;
+  }
+  .flag.hiring{ background:var(--green-100); color:var(--green-700); }
+  .flag.quiet{ background:var(--red-100); color:var(--red-600); }
+  .flag .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+
+  .company-name{ font-size:15.5px; font-weight:700; margin:14px 0 3px; }
+  .company-meta{ font-size:13px; color:var(--muted); }
+  .company-source{
+    margin-top:12px; font-size:11px; color:var(--muted-2);
+    text-transform:uppercase; letter-spacing:0.05em; font-weight:600;
+  }
+
+  /* ---------- detail panel ---------- */
+  .detail-panel{
+    margin-top:44px; border-top:1px solid var(--line); padding-top:32px;
+    display:none;
+  }
+  .detail-panel.open{ display:block; animation:fadeUp .35s ease; }
+  @keyframes fadeUp{ from{ opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+
+  .detail-head{ display:flex; align-items:center; gap:16px; margin-bottom:22px; }
+  .detail-logo{
+    width:52px; height:52px; border-radius:14px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px; color:var(--white);
+  }
+  .detail-title h3{ margin:0 0 3px; font-size:20px; font-weight:700; }
+  .detail-title p{ margin:0; font-size:13.5px; color:var(--muted); }
+
+  .posting-row{
+    border:1px solid var(--line); border-radius:var(--radius-md);
+    padding:18px 20px; margin-bottom:12px; background:var(--white);
+  }
+  .posting-top{
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  }
+  .posting-title{ font-size:15px; font-weight:700; }
+  .posting-loc{ font-size:13px; color:var(--muted); margin-top:2px; }
+  .posting-link{
+    font-size:13px; font-weight:600; color:var(--green-600);
+    display:inline-flex; align-items:center; gap:5px;
+  }
+  .posting-link svg{ width:13px; height:13px; }
+
+  .skills-row{ margin-top:14px; display:flex; flex-wrap:wrap; gap:8px; }
+  .skill-chip{
+    font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px;
+    background:var(--green-050); color:var(--green-700); border:1px solid var(--green-100);
+  }
+  .skills-note{ font-size:12px; color:var(--muted-2); margin-top:8px; }
+
+  .salary-row{
+    margin-top:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+  .salary-btn{
+    font-size:13px; font-weight:600; padding:8px 14px; border-radius:var(--radius-sm);
+    border:1px solid var(--line); background:var(--white); color:var(--ink); cursor:pointer;
+    display:inline-flex; align-items:center; gap:7px;
+    transition:border-color .18s ease, background .18s ease;
+  }
+  .salary-btn:hover{ border-color:var(--green-600); background:var(--green-050); }
+  .salary-result{ font-size:13px; color:var(--muted); }
+  .salary-result.done{ color:var(--ink); font-weight:600; }
+  .salary-source{ font-size:11.5px; color:var(--muted-2); font-weight:400; }
+
+  /* ---------- empty state ---------- */
+  .empty-hint{
+    text-align:center; padding:60px 20px; color:var(--muted);
+    border:1px dashed var(--line); border-radius:var(--radius-md); font-size:14px;
+  }
+
+  @media (max-width: 980px){
+    .company-grid{ grid-template-columns:repeat(2,1fr); }
+    .stat-strip{ grid-template-columns:1fr; }
+  }
+  @media (max-width: 640px){
+    nav.links{ display:none; }
+    .company-grid{ grid-template-columns:1fr; }
+    .page-head{ flex-direction:column; align-items:flex-start; }
+    .refresh-meta{ text-align:left; }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+  <div class="bg-blob"></div>
+
+  <header class="nav">
+    <div class="brand">
+      <span class="mark">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h9l7 7v9H4z"/><path d="M13 4v7h7"/></svg>
+      </span>
+      <span>Scout<span class="ai"> AI</span></span>
+    </div>
+    <nav class="links">
+      <a href="index.html">Dashboard</a>
+      <a href="companies.html" class="active">Companies</a>
+    </nav>
+    <div class="nav-right">
+      <button class="btn-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New Analysis
+      </button>
+      <div class="avatar">M</div>
+      <span class="caret">▾</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-head">
+      <div>
+        <div class="eyebrow"><span class="dot"></span> Companies hiring right now</div>
+        <h1 class="headline display">Who's hiring, right now.</h1>
+        <p class="sub">Live from each company's own Greenhouse or Lever job board. Coverage is limited to companies that use one of these two platforms for public postings — hiring means at least one open role as of the last refresh.</p>
+      </div>
+      <div class="refresh-meta">
+        Last refreshed <strong id="refreshedAt">just now</strong>
+        <br>
+        <button id="refreshBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6"/><path d="M3.5 12a8.5 8.5 0 0 1 14.5-6M20.5 12a8.5 8.5 0 0 1-14.5 6"/></svg>
+          Refresh postings
+        </button>
+      </div>
+    </div>
+
+    <div class="search-bar">
+      <div class="search-field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="roleSearch" type="text" placeholder="Search a role, e.g. backend engineer, product designer…">
+      </div>
+      <div class="search-divider"></div>
+      <div class="search-field" style="flex:0 1 220px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+        <input id="locSearch" type="text" placeholder="Location, e.g. Bangalore">
+      </div>
+      <span class="search-note">Role search is semantic · location is an exact filter</span>
+    </div>
+
+    <div class="stat-strip">
+      <div class="stat-card green">
+        <div class="n" id="statHiring">—</div>
+        <div class="l">Companies hiring now</div>
+      </div>
+      <div class="stat-card">
+        <div class="n" id="statRoles">—</div>
+        <div class="l">Open roles tracked</div>
+      </div>
+      <div class="stat-card">
+        <div class="n" id="statTotal">—</div>
+        <div class="l">Companies tracked</div>
+      </div>
+    </div>
+
+    <div class="grid-head">
+      <h2>All companies</h2>
+      <span id="gridCount"></span>
+    </div>
+    <div class="company-grid" id="companyGrid"></div>
+    <div class="empty-hint" id="emptyHint" style="display:none;">No companies match that search — try a different role or location.</div>
+
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-head">
+        <div class="detail-logo" id="detailLogo"></div>
+        <div class="detail-title">
+          <h3 id="detailName"></h3>
+          <p id="detailMeta"></p>
+        </div>
+      </div>
+      <div id="detailPostings"></div>
+    </div>
+  </main>
+
+<script>
+  // ---- live data, pulled from the FastAPI backend (app/companies_store.py) ----
+  const API_BASE = "";  // same-origin: the backend serves this file too
+  let COMPANIES = [];          // [{name, open_postings, hiring}]
+  const POSTINGS_CACHE = {};   // company name -> postings[] (fetched on demand)
+
+  async function fetchOverview(){
+    const res = await fetch(`${API_BASE}/api/companies/overview`);
+    if (!res.ok) throw new Error("Failed to load companies overview");
+    const data = await res.json();
+    return data.companies;
+  }
+
+  async function fetchPostings(company){
+    if (POSTINGS_CACHE[company]) return POSTINGS_CACHE[company];
+    const res = await fetch(`${API_BASE}/api/companies/${encodeURIComponent(company)}/postings`);
+    if (!res.ok) throw new Error("Failed to load postings for " + company);
+    const data = await res.json();
+    POSTINGS_CACHE[company] = data.postings; // [{title, location, url, salary_text, skills}]
+    return data.postings;
+  }
+
+  const LOGO_COLORS = ["#17A34A","#0F8A3C","#1E1919","#6D6D6D","#28C76A"];
+  function logoColor(name){
+    let h=0; for(const c of name) h = (h*31 + c.charCodeAt(0)) % LOGO_COLORS.length;
+    return LOGO_COLORS[h];
+  }
+  function initials(name){
+    return name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+  }
+
+  const grid = document.getElementById('companyGrid');
+  const detailPanel = document.getElementById('detailPanel');
+  const emptyHint = document.getElementById('emptyHint');
+  const gridCount = document.getElementById('gridCount');
+
+  function renderStats(list){
+    const hiring = list.filter(c=>c.hiring).length;
+    const roles = list.reduce((sum,c)=>sum+c.open_postings, 0);
+    document.getElementById('statHiring').textContent = hiring;
+    document.getElementById('statRoles').textContent = roles;
+    document.getElementById('statTotal').textContent = list.length;
+  }
+
+  function renderGrid(list){
+    grid.innerHTML = "";
+    emptyHint.style.display = list.length ? "none" : "block";
+    gridCount.textContent = list.length + (list.length===1 ? " company" : " companies");
+
+    list.forEach(c=>{
+      const card = document.createElement('div');
+      card.className = "company-card";
+      card.innerHTML = `
+        <div class="company-top">
+          <div class="company-logo" style="background:${logoColor(c.name)}">${initials(c.name)}</div>
+          <span class="flag ${c.hiring ? 'hiring':'quiet'}">
+            <span class="dot"></span>${c.hiring ? 'Hiring' : 'No open roles'}
+          </span>
+        </div>
+        <div class="company-name">${c.name}</div>
+        <div class="company-meta">${c.open_postings} open role${c.open_postings===1?'':'s'}</div>
+      `;
+      card.addEventListener('click', ()=> openDetail(c, card));
+      grid.appendChild(card);
+    });
+  }
+
+  async function openDetail(company, cardEl){
+    document.querySelectorAll('.company-card').forEach(el=>el.classList.remove('selected'));
+    cardEl.classList.add('selected');
+
+    document.getElementById('detailLogo').style.background = logoColor(company.name);
+    document.getElementById('detailLogo').textContent = initials(company.name);
+    document.getElementById('detailName').textContent = company.name;
+    document.getElementById('detailMeta').textContent = "Loading open roles…";
+
+    const container = document.getElementById('detailPostings');
+    container.innerHTML = `<div class="empty-hint">Loading…</div>`;
+    detailPanel.classList.add('open');
+    detailPanel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+    let postings = [];
+    try {
+      postings = await fetchPostings(company.name);
+    } catch (e) {
+      container.innerHTML = `<div class="empty-hint">Couldn't load postings for ${company.name}.</div>`;
+      document.getElementById('detailMeta').textContent = "Failed to load";
+      return;
+    }
+
+    document.getElementById('detailMeta').textContent =
+      postings.length ? `${postings.length} open role${postings.length===1?'':'s'}` : `No open roles right now`;
+
+    container.innerHTML = "";
+    if (!postings.length){
+      container.innerHTML = `<div class="empty-hint">No open postings currently listed for ${company.name}.</div>`;
+      return;
+    }
+
+    postings.forEach(r=>{
+      const row = document.createElement('div');
+      row.className = "posting-row";
+      row.innerHTML = `
+        <div class="posting-top">
+          <div>
+            <div class="posting-title">${r.title}</div>
+            <div class="posting-loc">${r.location || 'location not listed'}</div>
+          </div>
+          <a class="posting-link" href="${r.url}" target="_blank" rel="noopener">
+            View posting
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg>
+          </a>
+        </div>
+        <div class="skills-row">
+          ${(r.skills||[]).map(s=>`<span class="skill-chip">${s}</span>`).join("") || '<span class="skills-note">No skills matched from the vocabulary for this posting.</span>'}
+        </div>
+        ${(r.skills||[]).length ? '<div class="skills-note">Required skills extracted from posting text — approximate, not authoritative.</div>' : ''}
+        ${r.salary_text ? `<div class="salary-row"><span class="salary-result done">💰 ${r.salary_text} <span class="salary-source">· listed directly on the posting</span></span></div>` : ''}
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  let searchDebounce = null;
+  async function applyFilters(){
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(async ()=>{
+      const role = document.getElementById('roleSearch').value.trim();
+      const loc = document.getElementById('locSearch').value.trim();
+
+      if (!role && !loc){
+        renderGrid(COMPANIES);
+        renderStats(COMPANIES);
+        return;
+      }
+
+      gridCount.textContent = "Searching…";
+      grid.innerHTML = `
+        <div class="search-loading" style="grid-column:1/-1; display:flex; flex-direction:column; align-items:center; gap:10px; padding:48px 0; color:var(--muted-2);">
+          <div class="spinner" style="width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--accent, #2ecc71); border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+          <div>Searching postings…</div>
+        </div>
+      `;
+      emptyHint.style.display = "none";
+      try {
+        const params = new URLSearchParams({ role, location: loc });
+        const res = await fetch(`${API_BASE}/api/companies/search?${params}`);
+        const data = await res.json();
+        if (!data.indexed){
+          emptyHint.style.display = "block";
+          emptyHint.textContent = "No postings indexed yet — click Refresh postings first.";
+          grid.innerHTML = "";
+          gridCount.textContent = "";
+          return;
+        }
+        emptyHint.textContent = "No companies match that search — try a different role or location.";
+        const matches = data.matches || [];
+        emptyHint.style.display = matches.length ? "none" : "block";
+        gridCount.textContent = data.total > matches.length
+          ? `Showing ${matches.length} of ${data.total} matching roles`
+          : `${data.total} matching role${data.total===1?'':'s'}`;
+
+        grid.innerHTML = "";
+        matches.forEach(m=>{
+          const card = document.createElement('div');
+          card.className = "company-card";
+          const sim = m.similarity != null ? ` · match ${m.similarity.toFixed(2)}` : "";
+          card.innerHTML = `
+            <div class="company-top">
+              <div class="company-logo" style="background:${logoColor(m.company)}">${initials(m.company)}</div>
+            </div>
+            <div class="company-name">${m.title}</div>
+            <div class="company-meta">${m.company} · ${m.location || 'location not listed'}${sim}</div>
+            ${m.salary_text ? `<div class="company-source">💰 ${m.salary_text}</div>` : ''}
+          `;
+          card.addEventListener('click', ()=> window.open(m.url, '_blank'));
+          grid.appendChild(card);
+        });
+      } catch (e) {
+        gridCount.textContent = "Search failed.";
+      }
+    }, 300);
+  }
+
+  document.getElementById('roleSearch').addEventListener('input', applyFilters);
+  document.getElementById('locSearch').addEventListener('input', applyFilters);
+
+  async function loadOverview(){
+    gridCount.textContent = "Loading companies…";
+    try {
+      COMPANIES = await fetchOverview();
+    } catch (e) {
+      gridCount.textContent = "";
+      emptyHint.style.display = "block";
+      emptyHint.textContent = "Couldn't reach the backend — is it running?";
+      renderStats([]);
+      return;
+    }
+    renderStats(COMPANIES);
+    renderGrid(COMPANIES);
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', async ()=>{
+    const btn = document.getElementById('refreshBtn');
+    btn.disabled = true;
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = "Refreshing…";
+    try {
+      const res = await fetch(`${API_BASE}/api/companies/refresh`, { method: "POST" });
+      const data = await res.json();
+      COMPANIES = data.companies;
+      Object.keys(POSTINGS_CACHE).forEach(k => delete POSTINGS_CACHE[k]);
+      renderStats(COMPANIES);
+      renderGrid(COMPANIES);
+      document.getElementById('refreshedAt').textContent = "just now";
+      if (data.failures && Object.keys(data.failures).length){
+        console.warn("Some companies failed to refresh:", data.failures);
+      }
+    } catch (e) {
+      alert("Refresh failed — check that the backend is running.");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  });
+
+  loadOverview();
+
+  // Warm up the semantic search index in the background as soon as the
+  // page loads, instead of waiting for the user's first keystroke to
+  // trigger it. Building the index (embedding every posting) is the
+  // main reason the first search felt like it needed several retries
+  // before showing anything -- this hides that cost behind page load
+  // instead of behind the first search.
+  fetch(`${API_BASE}/api/companies/search?role=&location=__warmup__`).catch(()=>{});
+</script>
+
+</body>
+</html>
