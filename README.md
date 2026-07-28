@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Resume ↔ JD Ranking Engine
 
 A semantic-search system that ranks a batch of resumes against a single
@@ -284,3 +285,6 @@ Then open http://localhost:8000/ in a browser. `streamlit_app.py`
 still works standalone if you'd rather use the original Streamlit UI
 instead — the two are independent front ends over the same `app/`
 package.
+=======
+# ScoutAI
+>>>>>>> 08e3e9347be26e16d8da53b9c50abae796a64aa5
