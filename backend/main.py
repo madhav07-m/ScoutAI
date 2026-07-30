@@ -24,7 +24,7 @@ import uuid
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -81,6 +81,13 @@ SESSIONS: Dict[str, dict] = {}
 # Same idea for the companies postings search index -- rebuilt whenever
 # companies are refreshed, kept in memory between requests.
 _postings_collection = {"collection": None}
+# Tracks the state of a companies refresh so the frontend can poll it.
+# refresh_all() over 32 companies (some with retry+backoff on Workday)
+# routinely takes well over Render's request timeout, so /api/companies/refresh
+# can no longer do the fetch inline and return the result directly -- it
+# kicks the fetch off as a background task and returns immediately, and
+# the frontend polls /api/companies/refresh-status for progress instead.
+_refresh_status = {"state": "idle", "failures": {}}  # state: idle | running | done | error
 
 
 @app.on_event("startup")
@@ -333,14 +340,35 @@ async def companies_overview():
     return {"companies": get_companies_overview(db_path=DB_PATH)}
 
 
+def _run_refresh_in_background():
+    _refresh_status["state"] = "running"
+    try:
+        results = refresh_all(DEFAULT_COMPANIES, db_path=DB_PATH)
+        _rebuild_postings_index()
+        failures = {name: msg for name, (ok, msg) in results.items() if not ok}
+        _refresh_status["failures"] = failures
+        _refresh_status["state"] = "done"
+    except Exception as e:  # noqa: BLE001 - surface to the status endpoint rather than crashing silently
+        _refresh_status["state"] = "error"
+        _refresh_status["failures"] = {"_all": str(e)}
+
+
 @app.post("/api/companies/refresh")
-async def companies_refresh():
-    results = refresh_all(DEFAULT_COMPANIES, db_path=DB_PATH)
-    _rebuild_postings_index()
-    failures = {name: msg for name, (ok, msg) in results.items() if not ok}
+async def companies_refresh(background_tasks: BackgroundTasks):
+    if _refresh_status["state"] == "running":
+        return {"status": "already_running"}
+    _refresh_status["state"] = "running"
+    _refresh_status["failures"] = {}
+    background_tasks.add_task(_run_refresh_in_background)
+    return {"status": "started"}
+
+
+@app.get("/api/companies/refresh-status")
+async def companies_refresh_status():
     return {
+        "state": _refresh_status["state"],
+        "failures": _refresh_status["failures"],
         "companies": get_companies_overview(db_path=DB_PATH),
-        "failures": failures,
     }
 
 

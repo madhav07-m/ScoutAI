@@ -566,20 +566,45 @@
     renderGrid(COMPANIES);
   }
 
+  function pollRefreshStatus(){
+    return new Promise((resolve, reject)=>{
+      const check = async ()=>{
+        try {
+          const res = await fetch(`${API_BASE}/api/companies/refresh-status`);
+          const data = await res.json();
+          if (data.state === "done" || data.state === "error"){
+            resolve(data);
+          } else {
+            setTimeout(check, 3000);
+          }
+        } catch (e) {
+          reject(e);
+        }
+      };
+      check();
+    });
+  }
+
   document.getElementById('refreshBtn').addEventListener('click', async ()=>{
     const btn = document.getElementById('refreshBtn');
     btn.disabled = true;
     const originalHtml = btn.innerHTML;
     btn.innerHTML = "Refreshing…";
     try {
-      const res = await fetch(`${API_BASE}/api/companies/refresh`, { method: "POST" });
-      const data = await res.json();
+      await fetch(`${API_BASE}/api/companies/refresh`, { method: "POST" });
+      // The fetch above returns almost immediately ({"status": "started"})
+      // -- the actual company-by-company fetching runs as a background
+      // task on the server, since it routinely takes longer than a
+      // single HTTP request should. Poll refresh-status until it's done.
+      const data = await pollRefreshStatus();
       COMPANIES = data.companies;
       Object.keys(POSTINGS_CACHE).forEach(k => delete POSTINGS_CACHE[k]);
       renderStats(COMPANIES);
       renderGrid(COMPANIES);
       document.getElementById('refreshedAt').textContent = "just now";
-      if (data.failures && Object.keys(data.failures).length){
+      if (data.state === "error"){
+        alert("Refresh failed on the backend — check server logs.");
+      } else if (data.failures && Object.keys(data.failures).length){
         console.warn("Some companies failed to refresh:", data.failures);
       }
     } catch (e) {
