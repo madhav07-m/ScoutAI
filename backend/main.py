@@ -52,6 +52,7 @@ from app.ranking import (
 )
 from app.session_store import load_all_sessions, load_session, prune_expired, save_session
 from app.vector_store import build_collection, score_resumes_against_jd
+from app.embeddings import embed_texts
 
 app = FastAPI(title="Scout AI API")
 
@@ -92,6 +93,28 @@ async def _restore_sessions_on_startup():
     """
     SESSIONS.update(load_all_sessions())
     prune_expired()
+
+
+@app.on_event("startup")
+async def _warm_embedding_model():
+    """Force the embedding model's one-time download/load to happen
+    now, during deploy startup, instead of lazily on whatever request
+    happens to trigger it first.
+
+    Without this, the FIRST real request that calls embed_texts()
+    (ranking a resume, or a companies search/refresh that indexes
+    postings) pays a ~60-100s one-time cost to download+load the
+    fastembed ONNX model files. On Render specifically, that request
+    then exceeds the platform's request timeout and comes back as a
+    502, even though the backend itself hadn't crashed -- it was just
+    still mid-download when Render gave up waiting. Startup has no
+    such tight timeout, so paying this cost here instead is free.
+    """
+    try:
+        embed_texts(["warmup"])
+    except Exception as e:  # noqa: BLE001 - don't block startup if this fails; the
+        # first real request will just pay the lazy-load cost as before
+        print(f"Embedding model warmup failed (non-fatal): {e}")
 
 
 def _content_cache_key(jd_sections: dict, matched_sections: dict) -> str:
