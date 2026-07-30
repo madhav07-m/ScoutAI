@@ -286,15 +286,22 @@ def _get_session(session_id: str) -> dict:
 
 
 @app.post("/api/rank/{session_id}/gap-analysis/{doc_name}")
-async def regenerate_gap_analysis(session_id: str, doc_name: str, gemini_key: Optional[str] = Form(None)):
+async def regenerate_gap_analysis(session_id: str, doc_name: str, gemini_key: Optional[str] = None):
+    # gemini_key is a plain query param (not Form/multipart) on purpose:
+    # when no key is typed in the UI, the frontend sends this request
+    # with no body at all so it can fall back to session/env, and an
+    # empty multipart body (Content-Type: multipart/form-data with a
+    # 0-byte payload) makes python-multipart raise "There was an error
+    # parsing the body" -- a query param sidesteps that entirely since
+    # there's no body to parse either way.
     session = _get_session(session_id)
     r = next((row for row in session["ranked"] if row["doc_name"] == doc_name), None)
     if r is None:
         raise HTTPException(404, f"No such resume in this session: {doc_name}")
 
-    key = gemini_key or session.get("gemini_key")
+    key = gemini_key or session.get("gemini_key") or os.environ.get("GEMINI_API_KEY")
     if not key:
-        raise HTTPException(400, "No Gemini API key provided (pass one or set GEMINI_API_KEY).")
+        raise HTTPException(400, "No Gemini API key provided (pass one, or set GEMINI_API_KEY on the server).")
 
     configure_gemini(key)
     matched_sections = _matched_sections_for(session, doc_name, r)

@@ -767,9 +767,8 @@
         btn.textContent = "Calling Gemini…";
         try {
           const geminiKey = document.getElementById('geminiKey').value.trim();
-          const fd = new FormData();
-          if (geminiKey) fd.append("gemini_key", geminiKey);
-          const res = await fetch(`${API_BASE}/api/rank/${currentSessionId}/gap-analysis/${encodeURIComponent(doc_name)}`, { method: "POST", body: fd });
+          const qs = geminiKey ? `?${new URLSearchParams({ gemini_key: geminiKey })}` : "";
+          const res = await fetch(`${API_BASE}/api/rank/${currentSessionId}/gap-analysis/${encodeURIComponent(doc_name)}${qs}`, { method: "POST" });
           if (!res.ok){
             const body = await res.json().catch(()=>({detail:"Unknown error"}));
             throw new Error(body.detail || "Gap analysis failed");
