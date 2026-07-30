@@ -336,9 +336,19 @@ async def download_gap_analysis_pdf(session_id: str, doc_name: str):
 _index_status = {"state": "idle", "last_error": None}  # idle | building | ready
 
 
+_MAX_INDEXED_POSTINGS = 1500  # search feature's scope, capped so the embedding
+# dataset stays small enough to build within Render's free-tier 512MB limit.
+# 5588 real postings was consistently pushing memory over the edge even with
+# batched embedding -- this trims what gets searched, not what's fetched/
+# stored (get_companies_overview / get_postings_for_company still show
+# everything; only the semantic search index is capped).
+
+
 def _rebuild_postings_index():
     try:
-        _postings_collection["collection"] = build_postings_collection(get_all_postings(db_path=DB_PATH))
+        all_postings = get_all_postings(db_path=DB_PATH)
+        capped = all_postings[:_MAX_INDEXED_POSTINGS]
+        _postings_collection["collection"] = build_postings_collection(capped)
         _index_status["state"] = "ready"
         _index_status["last_error"] = None
     except Exception as e:  # noqa: BLE001 - surface via the search response instead of failing silently
