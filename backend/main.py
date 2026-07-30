@@ -333,8 +333,17 @@ async def download_gap_analysis_pdf(session_id: str, doc_name: str):
 # Companies endpoints
 # ---------------------------------------------------------------------------
 
+_index_status = {"state": "idle"}  # idle | building | ready
+
+
 def _rebuild_postings_index():
-    _postings_collection["collection"] = build_postings_collection(get_all_postings(db_path=DB_PATH))
+    _index_status["state"] = "building"
+    try:
+        _postings_collection["collection"] = build_postings_collection(get_all_postings(db_path=DB_PATH))
+        _index_status["state"] = "ready"
+    except Exception:
+        _index_status["state"] = "idle"
+        raise
 
 
 @app.get("/api/companies/overview")
@@ -372,6 +381,7 @@ def _run_refresh_in_background():
         # on the next search request, spreading that cost out instead of
         # stacking it directly on top of the refresh.
         _postings_collection["collection"] = None
+        _index_status["state"] = "idle"
 
         _refresh_status["failures"] = failures
         _refresh_status["state"] = "done"
@@ -405,14 +415,17 @@ async def companies_postings(company: str):
 
 
 @app.get("/api/companies/search")
-async def companies_search(role: str = "", location: str = ""):
+async def companies_search(background_tasks: BackgroundTasks, role: str = "", location: str = ""):
     if _postings_collection["collection"] is None:
-        _rebuild_postings_index()
+        if _index_status["state"] != "building":
+            background_tasks.add_task(_rebuild_postings_index)
+        return {"matches": [], "total": 0, "indexed": False, "building": True}
     collection = _postings_collection["collection"]
     if collection is None or collection.count() == 0:
-        return {"matches": [], "total": 0, "indexed": False}
+        return {"matches": [], "total": 0, "indexed": False, "building": False}
     result = search_postings(collection, role, location, top_k=100)
     result["indexed"] = True
+    result["building"] = False
     return result
 
 

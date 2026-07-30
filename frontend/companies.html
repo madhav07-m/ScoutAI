@@ -510,8 +510,20 @@
       emptyHint.style.display = "none";
       try {
         const params = new URLSearchParams({ role, location: loc });
-        const res = await fetch(`${API_BASE}/api/companies/search?${params}`);
-        const data = await res.json();
+        let data = await (await fetch(`${API_BASE}/api/companies/search?${params}`)).json();
+
+        // Index isn't built yet -- a background task was just kicked off
+        // to build it (embedding thousands of postings takes too long to
+        // do inline within one request). Poll every few seconds until
+        // it's ready instead of treating this as "no results."
+        let pollCount = 0;
+        while (data.building && pollCount < 20){
+          gridCount.textContent = "Indexing postings for search…";
+          await new Promise(r => setTimeout(r, 3000));
+          data = await (await fetch(`${API_BASE}/api/companies/search?${params}`)).json();
+          pollCount++;
+        }
+
         if (!data.indexed){
           emptyHint.style.display = "block";
           emptyHint.textContent = "No postings indexed yet — click Refresh postings first.";
