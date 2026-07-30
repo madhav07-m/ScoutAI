@@ -25,6 +25,7 @@ persisted, since re-embedding a few hundred short titles is fast and
 keeps this consistent with the existing ephemeral-per-session design.
 """
 
+import gc
 import uuid
 from typing import List, Optional
 
@@ -50,7 +51,6 @@ def build_postings_collection(postings: List[dict]):
         p["title"] + (" " + " ".join(p["skills"]) if p.get("skills") else "")
         for p in postings
     ]
-    vectors = embed_texts(texts)
     ids = [p["id"] for p in postings]
     metadatas = [
         {
@@ -63,21 +63,24 @@ def build_postings_collection(postings: List[dict]):
         for p in postings
     ]
 
-    # ChromaDB caps how many items a single add() call can take (the
-    # limit comes from the underlying storage engine, e.g. 5461 in
-    # this environment). Insert in safe-sized chunks instead of one
-    # call, so this keeps working as the postings count grows well
-    # past a few thousand.
-    _CHROMA_ADD_BATCH_SIZE = 4000
-    embeddings_list = vectors.tolist()
-    for start in range(0, len(ids), _CHROMA_ADD_BATCH_SIZE):
-        end = start + _CHROMA_ADD_BATCH_SIZE
+    # Embedding all postings in one call was the actual memory spike
+    # here (thousands of texts held in memory through the model at
+    # once), not the Chroma insert below (which was already batched).
+    # Embed in small batches instead and add each batch to the
+    # collection as it's ready, so peak memory stays bounded regardless
+    # of how many postings there are.
+    _EMBED_BATCH_SIZE = 200
+    for start in range(0, len(texts), _EMBED_BATCH_SIZE):
+        end = start + _EMBED_BATCH_SIZE
+        batch_vectors = embed_texts(texts[start:end])
         collection.add(
             ids=ids[start:end],
-            embeddings=embeddings_list[start:end],
+            embeddings=batch_vectors.tolist(),
             documents=texts[start:end],
             metadatas=metadatas[start:end],
         )
+        del batch_vectors
+        gc.collect()
     return collection
 
 
