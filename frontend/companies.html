@@ -517,8 +517,8 @@
         // do inline within one request). Poll every few seconds until
         // it's ready instead of treating this as "no results."
         let pollCount = 0;
-        while (data.building && pollCount < 20){
-          gridCount.textContent = "Indexing postings for search…";
+        while (data.building && pollCount < 60){
+          gridCount.textContent = "Indexing postings for search… (this can take a couple minutes on first search)";
           if (data.last_error) console.warn("Index build error (will retry):", data.last_error);
           await new Promise(r => setTimeout(r, 3000));
           data = await (await fetch(`${API_BASE}/api/companies/search?${params}`)).json();
