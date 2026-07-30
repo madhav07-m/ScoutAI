@@ -18,6 +18,7 @@ the project root like they did for streamlit_app.py.)
 Then open http://localhost:8000/ in a browser.
 """
 
+import gc
 import hashlib
 import os
 import uuid
@@ -39,6 +40,7 @@ from app.companies_store import (
     get_companies_overview,
     get_postings_for_company,
     refresh_all,
+    refresh_company,
 )
 from app.gap_analysis import configure_gemini, generate_gap_analysis
 from app.parsing import is_low_extraction, parse_document_with_meta
@@ -340,12 +342,37 @@ async def companies_overview():
     return {"companies": get_companies_overview(db_path=DB_PATH)}
 
 
+_REFRESH_BATCH_SIZE = 5  # process companies in small chunks, not all 32 at once,
+                          # so peak memory stays lower and gc has a chance to run
+                          # between batches instead of everything staying live at once
+
+
 def _run_refresh_in_background():
     _refresh_status["state"] = "running"
+    failures = {}
     try:
-        results = refresh_all(DEFAULT_COMPANIES, db_path=DB_PATH)
-        _rebuild_postings_index()
-        failures = {name: msg for name, (ok, msg) in results.items() if not ok}
+        companies = DEFAULT_COMPANIES
+        for i in range(0, len(companies), _REFRESH_BATCH_SIZE):
+            batch = companies[i:i + _REFRESH_BATCH_SIZE]
+            for cfg in batch:
+                try:
+                    refresh_company(cfg, db_path=DB_PATH)
+                except Exception as e:  # noqa: BLE001 - one company failing shouldn't stop the rest
+                    failures[cfg["name"]] = str(e)
+            # Drop the batch's response data before starting the next one,
+            # and explicitly free memory rather than waiting for it to
+            # accumulate across all 32 companies before Python's own GC
+            # would naturally run.
+            gc.collect()
+
+        # Don't rebuild the (memory-heavy, embeds every posting) search
+        # index here -- that was the second half of what pushed memory
+        # over the limit right after a refresh. Instead, just mark the
+        # in-memory index stale; /api/companies/search rebuilds it lazily
+        # on the next search request, spreading that cost out instead of
+        # stacking it directly on top of the refresh.
+        _postings_collection["collection"] = None
+
         _refresh_status["failures"] = failures
         _refresh_status["state"] = "done"
     except Exception as e:  # noqa: BLE001 - surface to the status endpoint rather than crashing silently
