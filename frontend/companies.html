@@ -519,6 +519,7 @@
         let pollCount = 0;
         while (data.building && pollCount < 20){
           gridCount.textContent = "Indexing postings for search…";
+          if (data.last_error) console.warn("Index build error (will retry):", data.last_error);
           await new Promise(r => setTimeout(r, 3000));
           data = await (await fetch(`${API_BASE}/api/companies/search?${params}`)).json();
           pollCount++;

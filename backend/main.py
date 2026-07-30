@@ -333,17 +333,17 @@ async def download_gap_analysis_pdf(session_id: str, doc_name: str):
 # Companies endpoints
 # ---------------------------------------------------------------------------
 
-_index_status = {"state": "idle"}  # idle | building | ready
+_index_status = {"state": "idle", "last_error": None}  # idle | building | ready
 
 
 def _rebuild_postings_index():
-    _index_status["state"] = "building"
     try:
         _postings_collection["collection"] = build_postings_collection(get_all_postings(db_path=DB_PATH))
         _index_status["state"] = "ready"
-    except Exception:
+        _index_status["last_error"] = None
+    except Exception as e:  # noqa: BLE001 - surface via the search response instead of failing silently
         _index_status["state"] = "idle"
-        raise
+        _index_status["last_error"] = str(e)
 
 
 @app.get("/api/companies/overview")
@@ -417,9 +417,12 @@ async def companies_postings(company: str):
 @app.get("/api/companies/search")
 async def companies_search(background_tasks: BackgroundTasks, role: str = "", location: str = ""):
     if _postings_collection["collection"] is None:
-        if _index_status["state"] != "building":
+        if _index_status["state"] == "idle":
+            _index_status["state"] = "building"  # set immediately, before the task actually
+            # runs, so a second request arriving milliseconds later (e.g. from typing
+            # letter by letter) doesn't also see "idle" and schedule a duplicate build
             background_tasks.add_task(_rebuild_postings_index)
-        return {"matches": [], "total": 0, "indexed": False, "building": True}
+        return {"matches": [], "total": 0, "indexed": False, "building": True, "last_error": _index_status["last_error"]}
     collection = _postings_collection["collection"]
     if collection is None or collection.count() == 0:
         return {"matches": [], "total": 0, "indexed": False, "building": False}
