@@ -21,6 +21,7 @@ Then open http://localhost:8000/ in a browser.
 import gc
 import hashlib
 import os
+import threading
 import uuid
 from typing import Dict, List, Optional
 
@@ -124,6 +125,28 @@ async def _warm_embedding_model():
     except Exception as e:  # noqa: BLE001 - don't block startup if this fails; the
         # first real request will just pay the lazy-load cost as before
         print(f"Embedding model warmup failed (non-fatal): {e}")
+
+
+@app.on_event("startup")
+async def _auto_refresh_companies_on_startup():
+    """Kick off a companies refresh + search-index build automatically
+    when the backend starts, instead of waiting for someone to click
+    "Refresh postings" by hand.
+
+    This runs in a plain background thread (not asyncio.create_task)
+    because refresh_company()/build_postings_collection() are
+    synchronous, CPU/network-bound calls -- running them directly in
+    the startup event would block the whole app from accepting any
+    requests (including the port-binding health check) until they
+    finished, which on Render's free-tier CPU can take several
+    minutes. A daemon thread lets startup complete immediately while
+    this keeps working in the background; _refresh_status and
+    _index_status (polled by the frontend) reflect its progress.
+    """
+    def _startup_job():
+        _run_refresh_in_background()  # fetches postings company-by-company, in batches
+        _rebuild_postings_index()     # then builds the search index once, also batched
+    threading.Thread(target=_startup_job, daemon=True).start()
 
 
 def _content_cache_key(jd_sections: dict, matched_sections: dict) -> str:
@@ -286,22 +309,15 @@ def _get_session(session_id: str) -> dict:
 
 
 @app.post("/api/rank/{session_id}/gap-analysis/{doc_name}")
-async def regenerate_gap_analysis(session_id: str, doc_name: str, gemini_key: Optional[str] = None):
-    # gemini_key is a plain query param (not Form/multipart) on purpose:
-    # when no key is typed in the UI, the frontend sends this request
-    # with no body at all so it can fall back to session/env, and an
-    # empty multipart body (Content-Type: multipart/form-data with a
-    # 0-byte payload) makes python-multipart raise "There was an error
-    # parsing the body" -- a query param sidesteps that entirely since
-    # there's no body to parse either way.
+async def regenerate_gap_analysis(session_id: str, doc_name: str, gemini_key: Optional[str] = Form(None)):
     session = _get_session(session_id)
     r = next((row for row in session["ranked"] if row["doc_name"] == doc_name), None)
     if r is None:
         raise HTTPException(404, f"No such resume in this session: {doc_name}")
 
-    key = gemini_key or session.get("gemini_key") or os.environ.get("GEMINI_API_KEY")
+    key = gemini_key or session.get("gemini_key")
     if not key:
-        raise HTTPException(400, "No Gemini API key provided (pass one, or set GEMINI_API_KEY on the server).")
+        raise HTTPException(400, "No Gemini API key provided (pass one or set GEMINI_API_KEY).")
 
     configure_gemini(key)
     matched_sections = _matched_sections_for(session, doc_name, r)
@@ -343,10 +359,12 @@ async def download_gap_analysis_pdf(session_id: str, doc_name: str):
 _index_status = {"state": "idle", "last_error": None}  # idle | building | ready
 
 
-_MAX_INDEXED_POSTINGS = 1500  # search feature's scope, capped so the embedding
-# dataset stays small enough to build within Render's free-tier 512MB limit.
-# 5588 real postings was consistently pushing memory over the edge even with
-# batched embedding -- this trims what gets searched, not what's fetched/
+_MAX_INDEXED_POSTINGS = 1500  # search feature's scope, capped for two reasons:
+# (1) keeps the embedding dataset small enough to build within Render's
+# free-tier 512MB memory limit, and (2) directly cuts how long building the
+# index takes -- embedding time scales with postings count, so indexing all
+# 5588 real postings was both a memory risk AND took several minutes on
+# Render's free-tier CPU. This trims what gets searched, not what's fetched/
 # stored (get_companies_overview / get_postings_for_company still show
 # everything; only the semantic search index is capped).
 
