@@ -69,7 +69,7 @@ def build_postings_collection(postings: List[dict]):
     # Embed in small batches instead and add each batch to the
     # collection as it's ready, so peak memory stays bounded regardless
     # of how many postings there are.
-    _EMBED_BATCH_SIZE = 100
+    _EMBED_BATCH_SIZE = 50
     for start in range(0, len(texts), _EMBED_BATCH_SIZE):
         end = start + _EMBED_BATCH_SIZE
         batch_vectors = embed_texts(texts[start:end])

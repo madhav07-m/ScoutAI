@@ -359,7 +359,7 @@ async def download_gap_analysis_pdf(session_id: str, doc_name: str):
 _index_status = {"state": "idle", "last_error": None}  # idle | building | ready
 
 
-_MAX_INDEXED_POSTINGS = 600  # search feature's scope, capped for two reasons:
+_MAX_INDEXED_POSTINGS = 150  # search feature's scope, capped for two reasons:
 # (1) keeps the embedding dataset small enough to build within Render's
 # free-tier 512MB memory limit, and (2) directly cuts how long building the
 # index takes -- embedding time scales with postings count, so indexing all
