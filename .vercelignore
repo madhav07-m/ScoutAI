@@ -1,0 +1,11 @@
+/requirements.txt
+/requirements-eval.txt
+/backend/
+/app/
+/scripts/
+/tests/
+/frontend/
+/streamlit_app.py
+/evaluate.py
+/evaluate_faithfulness.py
+/test_pdf.py
