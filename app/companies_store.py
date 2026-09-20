@@ -52,14 +52,21 @@ patterns above.
 """
 
 import re
-import sqlite3
 import time
 from dataclasses import dataclass
 from typing import List, Optional
 
+import numpy as np
+import psycopg2
 import requests
+from psycopg2.extras import execute_values
 
-DB_PATH = "companies.db"
+from app.db import get_conn, put_conn
+
+DB_PATH = "companies.db"  # kept only so existing callers that still pass
+# db_path=DB_PATH (e.g. main.py) don't break -- it's accepted below but
+# ignored, since storage is now one shared Postgres database (DATABASE_URL)
+# rather than a per-caller SQLite file path.
 
 # board_type: "greenhouse", "lever", or "ashby". token is the
 # company's slug in that ATS's public URL.
@@ -217,8 +224,13 @@ class Posting:
 
 
 def init_db(db_path: str = DB_PATH):
-    conn = sqlite3.connect(db_path)
-    conn.execute("""
+    """db_path is accepted for backward compatibility with existing
+    callers but ignored -- storage now goes through the shared
+    Postgres pool in app/db.py (DATABASE_URL), not a per-path SQLite
+    file."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS postings (
             id TEXT PRIMARY KEY,
             company TEXT,
@@ -227,17 +239,30 @@ def init_db(db_path: str = DB_PATH):
             url TEXT,
             salary_text TEXT,
             skills TEXT,
-            fetched_at REAL
+            fetched_at DOUBLE PRECISION
         )
     """)
-    conn.execute("""
+    # Saved embeddings for the search index. Deliberately a SEPARATE table
+    # keyed by posting id (not a column on postings): refresh_company()
+    # deletes and re-inserts a company's rows on every refresh, which
+    # would wipe a column on postings and force a full re-embed each time.
+    # text_hash lets us re-embed only postings whose title/skills changed.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS posting_embeddings (
+            id TEXT PRIMARY KEY,
+            text_hash TEXT,
+            embedding BYTEA
+        )
+    """)
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS salary_cache (
             content_hash TEXT PRIMARY KEY,
             result TEXT,
-            created_at REAL
+            created_at DOUBLE PRECISION
         )
     """)
     conn.commit()
+    cur.close()
     return conn
 
 
@@ -485,7 +510,7 @@ def fetch_workday(tenant: str, region: str, site: str, company: str) -> List[Pos
 
 
 def refresh_company(company_cfg: dict, db_path: str = DB_PATH) -> int:
-    """Fetch current postings for one company and upsert into SQLite.
+    """Fetch current postings for one company and upsert into Postgres.
     Returns the number of postings stored (0 = no open postings, i.e.
     the hiring flag for this company should render red).
     """
@@ -510,18 +535,31 @@ def refresh_company(company_cfg: dict, db_path: str = DB_PATH) -> int:
         else:
             raise ValueError(f"Unknown board_type: {board_type}")
 
-        conn.execute("DELETE FROM postings WHERE company = ?", (company_cfg["name"],))
+        cur = conn.cursor()
+        cur.execute("DELETE FROM postings WHERE company = %s", (company_cfg["name"],))
         now = time.time()
         for p in postings:
-            conn.execute(
-                "INSERT OR REPLACE INTO postings VALUES (?,?,?,?,?,?,?,?)",
+            cur.execute(
+                """
+                INSERT INTO postings (id, company, title, location, url, salary_text, skills, fetched_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    company = EXCLUDED.company,
+                    title = EXCLUDED.title,
+                    location = EXCLUDED.location,
+                    url = EXCLUDED.url,
+                    salary_text = EXCLUDED.salary_text,
+                    skills = EXCLUDED.skills,
+                    fetched_at = EXCLUDED.fetched_at
+                """,
                 (p.id, p.company, p.title, p.location, p.url,
                  p.salary_text, ",".join(p.skills), now),
             )
         conn.commit()
+        cur.close()
         return len(postings)
     finally:
-        conn.close()
+        put_conn(conn)
 
 
 def refresh_all(companies: List[dict] = None, db_path: str = DB_PATH) -> dict:
@@ -543,9 +581,10 @@ def get_companies_overview(db_path: str = DB_PATH) -> List[dict]:
     """One row per company: name, open-postings count, hiring flag."""
     conn = init_db(db_path)
     try:
-        rows = conn.execute(
-            "SELECT company, COUNT(*) FROM postings GROUP BY company"
-        ).fetchall()
+        cur = conn.cursor()
+        cur.execute("SELECT company, COUNT(*) FROM postings GROUP BY company")
+        rows = cur.fetchall()
+        cur.close()
         counts = {name: n for name, n in rows}
         overview = []
         for cfg in DEFAULT_COMPANIES:
@@ -557,16 +596,19 @@ def get_companies_overview(db_path: str = DB_PATH) -> List[dict]:
             })
         return overview
     finally:
-        conn.close()
+        put_conn(conn)
 
 
 def get_postings_for_company(company: str, db_path: str = DB_PATH) -> List[dict]:
     conn = init_db(db_path)
     try:
-        rows = conn.execute(
-            "SELECT id, title, location, url, salary_text, skills FROM postings WHERE company = ?",
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, title, location, url, salary_text, skills FROM postings WHERE company = %s",
             (company,),
-        ).fetchall()
+        )
+        rows = cur.fetchall()
+        cur.close()
         return [
             {
                 "id": r[0], "title": r[1], "location": r[2], "url": r[3],
@@ -576,7 +618,7 @@ def get_postings_for_company(company: str, db_path: str = DB_PATH) -> List[dict]
             for r in rows
         ]
     finally:
-        conn.close()
+        put_conn(conn)
 
 
 def get_all_postings(db_path: str = DB_PATH) -> List[dict]:
@@ -585,9 +627,12 @@ def get_all_postings(db_path: str = DB_PATH) -> List[dict]:
     """
     conn = init_db(db_path)
     try:
-        rows = conn.execute(
+        cur = conn.cursor()
+        cur.execute(
             "SELECT id, company, title, location, url, salary_text, skills FROM postings"
-        ).fetchall()
+        )
+        rows = cur.fetchall()
+        cur.close()
         return [
             {
                 "id": r[0], "company": r[1], "title": r[2], "location": r[3],
@@ -597,4 +642,76 @@ def get_all_postings(db_path: str = DB_PATH) -> List[dict]:
             for r in rows
         ]
     finally:
-        conn.close()
+        put_conn(conn)
+
+
+# ---------------------------------------------------------------------------
+# Saved posting embeddings (used by app/postings_search.py)
+# ---------------------------------------------------------------------------
+
+def load_posting_embeddings() -> dict:
+    """{posting_id: (text_hash, float32 vector)} for every saved embedding.
+    ~1.5 KB per posting, so ~8 MB for 5,500 postings."""
+    conn = init_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, text_hash, embedding FROM posting_embeddings")
+        out = {
+            pid: (h, np.frombuffer(bytes(blob), dtype=np.float32))
+            for pid, h, blob in cur.fetchall()
+        }
+        cur.close()
+        return out
+    finally:
+        put_conn(conn)
+
+
+def save_posting_embeddings(rows) -> None:
+    """Upsert [(posting_id, text_hash, vector), ...] in one round trip.
+    One batched statement (not one INSERT per row) matters when the DB is
+    remote, e.g. running the backfill script from a laptop."""
+    rows = list(rows)
+    if not rows:
+        return
+    conn = init_db()
+    try:
+        cur = conn.cursor()
+        execute_values(
+            cur,
+            """
+            INSERT INTO posting_embeddings (id, text_hash, embedding) VALUES %s
+            ON CONFLICT (id) DO UPDATE SET
+                text_hash = EXCLUDED.text_hash,
+                embedding = EXCLUDED.embedding
+            """,
+            [
+                (pid, h, psycopg2.Binary(np.asarray(vec, dtype=np.float32).tobytes()))
+                for pid, h, vec in rows
+            ],
+        )
+        conn.commit()
+        cur.close()
+    except Exception:
+        conn.rollback()  # never hand a broken transaction back to the pool
+        raise
+    finally:
+        put_conn(conn)
+
+
+def prune_posting_embeddings() -> int:
+    """Delete saved embeddings whose posting no longer exists. Returns
+    the number removed. Call it AFTER a refresh finishes, not during
+    one (a refresh briefly deletes a company's rows before re-inserting)."""
+    conn = init_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM posting_embeddings WHERE id NOT IN (SELECT id FROM postings)")
+        n = cur.rowcount
+        conn.commit()
+        cur.close()
+        return n
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        put_conn(conn)

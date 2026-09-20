@@ -26,7 +26,7 @@ import uuid
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -34,12 +34,14 @@ from fastapi.staticfiles import StaticFiles
 load_dotenv()
 
 from app.chunking import chunk_by_section, chunks_to_list
+from app.auth import CurrentUser, get_current_user
 from app.companies_store import (
     DB_PATH,
     DEFAULT_COMPANIES,
     get_all_postings,
     get_companies_overview,
     get_postings_for_company,
+    prune_posting_embeddings,
     refresh_all,
     refresh_company,
 )
@@ -127,28 +129,6 @@ async def _warm_embedding_model():
         print(f"Embedding model warmup failed (non-fatal): {e}")
 
 
-@app.on_event("startup")
-async def _auto_refresh_companies_on_startup():
-    """Kick off a companies refresh + search-index build automatically
-    when the backend starts, instead of waiting for someone to click
-    "Refresh postings" by hand.
-
-    This runs in a plain background thread (not asyncio.create_task)
-    because refresh_company()/build_postings_collection() are
-    synchronous, CPU/network-bound calls -- running them directly in
-    the startup event would block the whole app from accepting any
-    requests (including the port-binding health check) until they
-    finished, which on Render's free-tier CPU can take several
-    minutes. A daemon thread lets startup complete immediately while
-    this keeps working in the background; _refresh_status and
-    _index_status (polled by the frontend) reflect its progress.
-    """
-    def _startup_job():
-        _run_refresh_in_background()  # fetches postings company-by-company, in batches
-        _rebuild_postings_index()     # then builds the search index once, also batched
-    threading.Thread(target=_startup_job, daemon=True).start()
-
-
 def _content_cache_key(jd_sections: dict, matched_sections: dict) -> str:
     combined = "".join(f"{k}:{v}" for k, v in sorted(jd_sections.items()))
     combined += "||" + "".join(f"{k}:{v}" for k, v in sorted(matched_sections.items()))
@@ -203,6 +183,7 @@ async def rank_resumes(
     jd: UploadFile = File(...),
     resumes: List[UploadFile] = File(...),
     gemini_key: Optional[str] = Form(None),
+    user: CurrentUser = Depends(get_current_user),
 ):
     gemini_key = gemini_key or os.environ.get("GEMINI_API_KEY")
 
@@ -309,15 +290,22 @@ def _get_session(session_id: str) -> dict:
 
 
 @app.post("/api/rank/{session_id}/gap-analysis/{doc_name}")
-async def regenerate_gap_analysis(session_id: str, doc_name: str, gemini_key: Optional[str] = Form(None)):
+async def regenerate_gap_analysis(session_id: str, doc_name: str, gemini_key: Optional[str] = None):
+    # gemini_key is a plain query param (not Form/multipart) on purpose:
+    # when no key is typed in the UI, the frontend sends this request
+    # with no body at all so it can fall back to session/env, and an
+    # empty multipart body (Content-Type: multipart/form-data with a
+    # 0-byte payload) makes python-multipart raise "There was an error
+    # parsing the body" -- a query param sidesteps that entirely since
+    # there's no body to parse either way.
     session = _get_session(session_id)
     r = next((row for row in session["ranked"] if row["doc_name"] == doc_name), None)
     if r is None:
         raise HTTPException(404, f"No such resume in this session: {doc_name}")
 
-    key = gemini_key or session.get("gemini_key")
+    key = gemini_key or session.get("gemini_key") or os.environ.get("GEMINI_API_KEY")
     if not key:
-        raise HTTPException(400, "No Gemini API key provided (pass one or set GEMINI_API_KEY).")
+        raise HTTPException(400, "No Gemini API key provided (pass one, or set GEMINI_API_KEY on the server).")
 
     configure_gemini(key)
     matched_sections = _matched_sections_for(session, doc_name, r)
@@ -359,26 +347,30 @@ async def download_gap_analysis_pdf(session_id: str, doc_name: str):
 _index_status = {"state": "idle", "last_error": None}  # idle | building | ready
 
 
-_MAX_INDEXED_POSTINGS = 150  # search feature's scope, capped for two reasons:
-# (1) keeps the embedding dataset small enough to build within Render's
-# free-tier 512MB memory limit, and (2) directly cuts how long building the
-# index takes -- embedding time scales with postings count, so indexing all
-# 5588 real postings was both a memory risk AND took several minutes on
-# Render's free-tier CPU. This trims what gets searched, not what's fetched/
-# stored (get_companies_overview / get_postings_for_company still show
-# everything; only the semantic search index is capped).
-
-
 def _rebuild_postings_index():
     try:
+        # Every posting is indexed now (no cap). The index is a ~8 MB NumPy
+        # matrix, and saved embeddings mean only new/changed postings are
+        # actually embedded -- see app/postings_search.py.
         all_postings = get_all_postings(db_path=DB_PATH)
-        capped = all_postings[:_MAX_INDEXED_POSTINGS]
-        _postings_collection["collection"] = build_postings_collection(capped)
+        _postings_collection["collection"] = build_postings_collection(all_postings)
         _index_status["state"] = "ready"
         _index_status["last_error"] = None
     except Exception as e:  # noqa: BLE001 - surface via the search response instead of failing silently
         _index_status["state"] = "idle"
         _index_status["last_error"] = str(e)
+
+
+@app.on_event("startup")
+async def _prebuild_postings_index():
+    """Build the search index in a background thread at startup, so the
+    first search doesn't have to wait for it. Cheap once embeddings are
+    saved (it loads them from Postgres instead of re-embedding). Declared
+    after _warm_embedding_model, so the model is already loaded when this
+    thread starts."""
+    if _index_status["state"] == "idle":
+        _index_status["state"] = "building"  # so /api/companies/search doesn't schedule a duplicate build
+        threading.Thread(target=_rebuild_postings_index, daemon=True).start()
 
 
 @app.get("/api/companies/overview")
@@ -409,14 +401,21 @@ def _run_refresh_in_background():
             # would naturally run.
             gc.collect()
 
-        # Don't rebuild the (memory-heavy, embeds every posting) search
-        # index here -- that was the second half of what pushed memory
-        # over the limit right after a refresh. Instead, just mark the
-        # in-memory index stale; /api/companies/search rebuilds it lazily
-        # on the next search request, spreading that cost out instead of
-        # stacking it directly on top of the refresh.
+        # Don't rebuild the search index here. Just mark the in-memory
+        # index stale; /api/companies/search rebuilds it lazily on the
+        # next search request. That rebuild loads saved embeddings and
+        # only embeds postings that are new since the last build.
         _postings_collection["collection"] = None
         _index_status["state"] = "idle"
+
+        # Now that every company's rows are re-inserted, drop saved
+        # embeddings for postings that no longer exist. Done here (not
+        # mid-refresh) so we never delete the embedding of a posting that
+        # is only briefly absent while its company is being re-inserted.
+        try:
+            prune_posting_embeddings()
+        except Exception as e:  # noqa: BLE001 - housekeeping only; never fail the refresh over it
+            print(f"Pruning saved embeddings failed (non-fatal): {e}")
 
         _refresh_status["failures"] = failures
         _refresh_status["state"] = "done"
@@ -468,24 +467,39 @@ async def companies_search(background_tasks: BackgroundTasks, role: str = "", lo
 
 
 # ---------------------------------------------------------------------------
-# Static frontend
+# Static frontend — React SPA build (dist/), replacing the old vanilla
+# multi-page frontend/ (index.html/login.html/companies.html each served by
+# name). A built SPA is one index.html with client-side routing (React
+# Router), so refreshing on e.g. /login or /companies now has to fall back
+# to that same index.html rather than 404ing on a page-specific route --
+# the classic "404 on refresh" class of bug that doesn't exist in a
+# multi-page app but does in an SPA. /api/... routes are matched first
+# (declared above) and still 404 normally if they don't exist; only
+# everything else falls through to the SPA.
 # ---------------------------------------------------------------------------
 
-_FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_DIST_DIR = os.path.join(_PROJECT_ROOT, "dist")
 
-app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="static")
+# Only serve the React build if it exists. On Render (API-only, with the
+# frontend on Vercel) there is no dist/ folder, so this whole block is
+# skipped and the API starts normally. Locally, where you've run
+# `npm run build`, it works exactly as before.
+if os.path.isdir(os.path.join(_DIST_DIR, "assets")):
+    app.mount("/assets", StaticFiles(directory=os.path.join(_DIST_DIR, "assets")), name="assets")
 
-
-@app.get("/")
-async def serve_index():
-    return FileResponse(os.path.join(_FRONTEND_DIR, "index.html"))
-
-
-@app.get("/index.html")
-async def serve_index_html():
-    return FileResponse(os.path.join(_FRONTEND_DIR, "index.html"))
-
-
-@app.get("/companies.html")
-async def serve_companies():
-    return FileResponse(os.path.join(_FRONTEND_DIR, "companies.html"))
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Any path not already matched by an /api/... route above falls
+        # through to here and gets the SPA shell; React Router then reads
+        # the URL client-side and renders the right page (Dashboard, Login,
+        # Companies) -- this is what makes /login, /companies, and a
+        # refresh on either of those work instead of 404ing.
+        index_path = os.path.join(_DIST_DIR, "index.html")
+        if not os.path.isfile(index_path):
+            raise HTTPException(
+                500,
+                "React build not found (dist/index.html missing) -- run "
+                "'npm install && npm run build' in the project root first.",
+            )
+        return FileResponse(index_path)

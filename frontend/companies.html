@@ -6,27 +6,25 @@
 <title>Scout AI — Companies hiring now</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#FAFAF8;
-    --bg-wash:#EAF7EE;
-    --ink:#14171A;
-    --muted:#6E7274;
-    --muted-2:#9A9D9E;
-    --green-700:#0F8A3C;
-    --green-600:#17A34A;
-    --green-500:#28C76A;
-    --green-100:#E6F6EA;
-    --green-050:#F2FAF4;
-    --red-600:#D64545;
-    --red-100:#FCEBEB;
-    --line:#E7E5E0;
+    --ink:#0B0F0D;
+    --paper:#F6F5F0;
+    --paper-2:#EFEDE4;
+    --lime:#D9FF5C;
+    --lime-dim:#EBFFAE;
+    --sage:#8A8F87;
+    --sage-2:#B7BBB2;
+    --pine:#1C2620;
+    --line:#DEDACB;
+    --line-2:#CFCABA;
     --white:#FFFFFF;
-    --radius-lg:20px;
-    --radius-md:14px;
-    --radius-sm:10px;
-    --shadow-soft: 0 1px 2px rgba(20,23,26,0.04), 0 8px 24px rgba(20,23,26,0.05);
+    --red:#B4232C;
+    --red-bg:#F7E6E4;
+    --amber:#8A5E0C;
+    --amber-bg:#F3ECD6;
+    --radius:4px;
   }
 
   *,*::before,*::after{ box-sizing:border-box; }
@@ -35,236 +33,199 @@
   body{
     margin:0;
     font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    background:var(--bg);
+    background:var(--paper);
     color:var(--ink);
     -webkit-font-smoothing:antialiased;
   }
 
-  .display{ font-family:'Space Grotesk','Inter',sans-serif; letter-spacing:-0.02em; }
+  .serif{ font-family:'Fraunces', serif; letter-spacing:-0.01em; }
   a{ color:inherit; text-decoration:none; }
+  ::selection{ background:var(--ink); color:var(--lime); }
+  :focus-visible{ outline:2px solid var(--ink); outline-offset:2px; }
 
-  .bg-blob{
-    position:fixed; top:-220px; left:-260px;
-    width:640px; height:640px; border-radius:50%;
-    background: radial-gradient(circle at 35% 35%, var(--bg-wash), transparent 68%);
-    z-index:0; pointer-events:none;
+  .grain{
+    position:fixed; inset:0; z-index:1; pointer-events:none; opacity:0.035; mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
-  /* ---------- nav (shared) ---------- */
+  /* ---------- nav ---------- */
   header.nav{
     position:sticky; top:0; z-index:20;
     display:flex; align-items:center; justify-content:space-between;
-    padding: 18px clamp(20px, 4vw, 56px);
+    padding:22px clamp(20px, 4vw, 56px);
     border-bottom:1px solid var(--line);
-    background:rgba(250,250,248,0.85);
+    background:rgba(246,245,240,0.92);
     backdrop-filter:blur(8px);
   }
-  .brand{ display:flex; align-items:center; gap:10px; font-size:19px; font-weight:700; }
-  .brand .mark{
-    width:32px; height:32px; border-radius:9px;
-    background:linear-gradient(135deg, var(--green-500), var(--green-700));
-    display:flex; align-items:center; justify-content:center; color:#fff;
-    box-shadow: var(--shadow-soft);
+  .brand{ display:flex; align-items:baseline; gap:2px; font-size:20px; font-weight:600; }
+  .brand .mk{ font-family:'Fraunces', serif; font-weight:600; }
+  .brand .ai{
+    font-family:'Inter', sans-serif; font-size:10px; font-weight:700;
+    letter-spacing:0.06em; background:var(--ink); color:var(--lime);
+    padding:2px 6px; border-radius:3px; margin-left:8px; transform:translateY(-6px);
+    display:inline-block;
   }
-  .brand .ai{ color:var(--green-600); }
-  nav.links{ display:flex; gap:36px; font-size:14.5px; font-weight:500; }
-  nav.links a{ position:relative; padding:6px 2px; color:var(--muted); transition:color .2s ease; }
+  nav.links{ display:flex; gap:32px; font-size:14px; font-weight:500; }
+  nav.links a{ position:relative; padding:4px 0; color:var(--sage); transition:color .2s ease; }
   nav.links a.active{ color:var(--ink); }
   nav.links a.active::after{
-    content:""; position:absolute; left:0; right:0; bottom:-2px;
-    height:2px; background:var(--green-600); border-radius:2px;
+    content:""; position:absolute; left:0; right:0; bottom:-3px; height:2px; background:var(--lime);
   }
   nav.links a:hover{ color:var(--ink); }
-  .nav-right{ display:flex; align-items:center; gap:14px; }
+  .nav-right{ display:flex; align-items:center; gap:10px; }
   .btn-pill{
-    display:inline-flex; align-items:center; gap:8px;
-    padding:9px 18px; border-radius:999px; border:1px solid var(--green-600);
-    color:var(--green-600); font-size:14px; font-weight:600; background:transparent;
-    cursor:pointer; transition: background .18s ease, transform .18s ease;
+    display:inline-flex; align-items:center; gap:7px;
+    padding:9px 16px; border-radius:999px; border:1px solid var(--ink);
+    color:var(--ink); font-size:13.5px; font-weight:600; background:transparent;
+    cursor:pointer; transition:background .15s ease, color .15s ease;
   }
-  .btn-pill:hover{ background:var(--green-050); transform:translateY(-1px); }
+  .btn-pill:hover{ background:var(--ink); color:var(--paper); }
   .avatar{
-    width:34px; height:34px; border-radius:50%; background:var(--green-100);
-    color:var(--green-700); display:flex; align-items:center; justify-content:center;
-    font-weight:700; font-size:13.5px;
+    width:32px; height:32px; border-radius:50%; background:var(--ink); color:var(--lime);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:13px; font-family:'Fraunces',serif;
   }
-  .caret{ color:var(--muted-2); font-size:11px; }
+  .caret{ color:var(--sage); font-size:10px; }
 
   /* ---------- page header ---------- */
   main{
-    position:relative; z-index:1;
-    max-width:1280px; margin:0 auto;
-    padding: clamp(36px, 6vw, 64px) clamp(20px, 4vw, 56px) 100px;
+    position:relative; z-index:2;
+    max-width:1320px; margin:0 auto;
+    padding:clamp(40px, 6vw, 68px) clamp(20px, 4vw, 56px) 100px;
   }
 
   .page-head{
     display:flex; align-items:flex-end; justify-content:space-between;
-    gap:24px; margin-bottom:30px; flex-wrap:wrap;
+    gap:24px; margin-bottom:34px; flex-wrap:wrap;
   }
-  .eyebrow{
-    display:inline-flex; align-items:center; gap:8px;
-    font-size:12.5px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase;
-    color:var(--green-600); margin-bottom:14px;
+  .kicker{
+    display:flex; align-items:center; gap:10px;
+    font-size:12px; font-weight:700; letter-spacing:0.04em; color:var(--sage);
+    margin-bottom:16px; font-family:'Inter',sans-serif;
   }
-  .eyebrow .dot{
-    width:7px; height:7px; border-radius:50%; background:var(--green-500);
-    box-shadow:0 0 0 4px var(--green-100);
+  .kicker .n{
+    width:20px; height:20px; border-radius:50%; background:var(--lime);
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700; color:var(--ink); flex:none;
   }
-  h1.headline{ font-size:clamp(30px, 3.4vw, 42px); font-weight:700; margin:0 0 8px; }
-  p.sub{ font-size:15px; color:var(--muted); margin:0; max-width:560px; line-height:1.55; }
+  h1.headline{ font-size:clamp(32px, 3.6vw, 48px); font-weight:600; margin:0 0 10px; font-family:'Fraunces',serif; }
+  p.sub{ font-size:15px; color:#3D423E; margin:0; max-width:580px; line-height:1.6; padding-left:18px; border-left:2px solid var(--lime); }
 
-  .refresh-meta{
-    text-align:right; font-size:13px; color:var(--muted-2);
-  }
+  .refresh-meta{ text-align:right; font-size:12.5px; color:var(--sage); }
   .refresh-meta button{
     display:inline-flex; align-items:center; gap:6px;
-    margin-top:8px; padding:8px 14px; border-radius:999px;
-    border:1px solid var(--line); background:var(--white);
-    font-size:13px; font-weight:600; color:var(--ink); cursor:pointer;
-    transition:border-color .18s ease, background .18s ease;
+    margin-top:10px; padding:9px 15px; border-radius:999px;
+    border:1px solid var(--ink); background:transparent;
+    font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer;
+    transition:background .15s ease, color .15s ease;
   }
-  .refresh-meta button:hover{ border-color:var(--green-600); background:var(--green-050); }
-  .refresh-meta button svg{ width:13px; height:13px; }
+  .refresh-meta button:hover{ background:var(--ink); color:var(--lime); }
+  .refresh-meta button svg{ width:12px; height:12px; }
 
   /* ---------- search + filter bar ---------- */
   .search-bar{
-    display:flex; gap:12px; flex-wrap:wrap;
-    background:var(--white); border:1px solid var(--line);
-    border-radius:var(--radius-md); padding:10px; margin-bottom:28px;
-    box-shadow: var(--shadow-soft);
+    display:flex; gap:0; flex-wrap:wrap;
+    background:var(--white); border:1px solid var(--ink);
+    padding:4px; margin-bottom:30px;
   }
   .search-field{
     flex:1 1 260px; display:flex; align-items:center; gap:10px;
-    padding:8px 12px; border-radius:var(--radius-sm);
+    padding:10px 14px;
   }
-  .search-field svg{ width:16px; height:16px; color:var(--muted-2); flex:none; }
+  .search-field svg{ width:15px; height:15px; color:var(--sage); flex:none; }
   .search-field input{
-    border:none; outline:none; font-size:14.5px; font-family:'Inter',sans-serif;
+    border:none; outline:none; font-size:14px; font-family:'Inter',sans-serif;
     width:100%; background:transparent; color:var(--ink);
   }
-  .search-field input::placeholder{ color:var(--muted-2); }
+  .search-field input::placeholder{ color:var(--sage-2); }
   .search-divider{ width:1px; background:var(--line); margin:6px 0; }
-  .search-note{
-    align-self:center; font-size:12px; color:var(--muted-2); padding:0 8px 0 2px;
-  }
+  .search-note{ align-self:center; font-size:11.5px; color:var(--sage-2); padding:0 12px 0 2px; }
 
   /* ---------- stat strip ---------- */
-  .stat-strip{
-    display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:36px;
-  }
-  .stat-card{
-    background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md);
-    padding:18px 20px;
-  }
-  .stat-card .n{ font-family:'Space Grotesk',sans-serif; font-size:30px; font-weight:700; }
-  .stat-card .l{ font-size:13px; color:var(--muted); margin-top:2px; }
-  .stat-card.green .n{ color:var(--green-600); }
+  .stat-strip{ display:flex; gap:0; margin-bottom:38px; border-top:1px solid var(--ink); border-bottom:1px solid var(--line); }
+  .stat-card{ flex:1; padding:18px 22px; border-right:1px solid var(--line); }
+  .stat-card:last-child{ border-right:none; }
+  .stat-card .n{ font-family:'Fraunces',serif; font-size:32px; font-weight:600; }
+  .stat-card .l{ font-size:12px; color:var(--sage); margin-top:2px; }
+  .stat-card.green .n{ color:#3F7A3A; }
 
   /* ---------- company grid ---------- */
-  .grid-head{
-    display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;
-  }
-  .grid-head h2{ font-size:15px; font-weight:700; margin:0; }
-  .grid-head span{ font-size:13px; color:var(--muted-2); }
+  .grid-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px; }
+  .grid-head h2{ font-size:14px; font-weight:700; margin:0; text-transform:uppercase; letter-spacing:0.05em; color:var(--sage); }
+  .grid-head span{ font-size:12.5px; color:var(--sage-2); }
 
-  .company-grid{
-    display:grid; grid-template-columns:repeat(3, 1fr); gap:16px;
-  }
+  .company-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:0; border-top:1px solid var(--line); border-left:1px solid var(--line); }
 
   .company-card{
-    background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md);
-    padding:20px; cursor:pointer;
-    transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+    background:var(--white); border-right:1px solid var(--line); border-bottom:1px solid var(--line);
+    padding:22px; cursor:pointer;
+    transition:background .15s ease;
   }
-  .company-card:hover{
-    border-color:var(--green-500); transform:translateY(-2px); box-shadow:var(--shadow-soft);
-  }
-  .company-card.selected{ border-color:var(--green-600); box-shadow:var(--shadow-soft); }
+  .company-card:hover{ background:var(--paper-2); }
+  .company-card.selected{ background:var(--ink); }
+  .company-card.selected .company-name, .company-card.selected .company-meta{ color:var(--paper); }
+  .company-card.selected .company-meta{ color:var(--sage-2); }
 
   .company-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
   .company-logo{
-    width:38px; height:38px; border-radius:10px;
+    width:36px; height:36px; border-radius:0;
     display:flex; align-items:center; justify-content:center;
-    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px;
-    color:var(--white);
+    font-family:'Fraunces',serif; font-weight:600; font-size:14px;
+    color:var(--paper); background:var(--ink) !important;
   }
-  .flag{
-    display:inline-flex; align-items:center; gap:6px;
-    font-size:11.5px; font-weight:700; padding:4px 9px; border-radius:999px;
-  }
-  .flag.hiring{ background:var(--green-100); color:var(--green-700); }
-  .flag.quiet{ background:var(--red-100); color:var(--red-600); }
+  .flag{ display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px; }
+  .flag.hiring{ background:var(--lime-dim); color:#4A5A20; }
+  .flag.quiet{ background:var(--red-bg); color:var(--red); }
   .flag .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
 
-  .company-name{ font-size:15.5px; font-weight:700; margin:14px 0 3px; }
-  .company-meta{ font-size:13px; color:var(--muted); }
-  .company-source{
-    margin-top:12px; font-size:11px; color:var(--muted-2);
-    text-transform:uppercase; letter-spacing:0.05em; font-weight:600;
-  }
+  .company-name{ font-size:15px; font-weight:600; margin:16px 0 3px; }
+  .company-meta{ font-size:12.5px; color:var(--sage); }
+  .company-source{ margin-top:12px; font-size:10.5px; color:var(--sage-2); text-transform:uppercase; letter-spacing:0.05em; font-weight:700; }
 
   /* ---------- detail panel ---------- */
-  .detail-panel{
-    margin-top:44px; border-top:1px solid var(--line); padding-top:32px;
-    display:none;
-  }
+  .detail-panel{ margin-top:48px; border-top:1px solid var(--ink); padding-top:34px; display:none; }
   .detail-panel.open{ display:block; animation:fadeUp .35s ease; }
   @keyframes fadeUp{ from{ opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
 
-  .detail-head{ display:flex; align-items:center; gap:16px; margin-bottom:22px; }
+  .detail-head{ display:flex; align-items:center; gap:18px; margin-bottom:24px; }
   .detail-logo{
-    width:52px; height:52px; border-radius:14px;
+    width:50px; height:50px; border-radius:0;
     display:flex; align-items:center; justify-content:center;
-    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px; color:var(--white);
+    font-family:'Fraunces',serif; font-weight:600; font-size:18px; color:var(--paper);
   }
-  .detail-title h3{ margin:0 0 3px; font-size:20px; font-weight:700; }
-  .detail-title p{ margin:0; font-size:13.5px; color:var(--muted); }
+  .detail-title h3{ margin:0 0 3px; font-size:22px; font-weight:600; font-family:'Fraunces',serif; }
+  .detail-title p{ margin:0; font-size:13px; color:var(--sage); }
 
-  .posting-row{
-    border:1px solid var(--line); border-radius:var(--radius-md);
-    padding:18px 20px; margin-bottom:12px; background:var(--white);
-  }
-  .posting-top{
-    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
-  }
-  .posting-title{ font-size:15px; font-weight:700; }
-  .posting-loc{ font-size:13px; color:var(--muted); margin-top:2px; }
-  .posting-link{
-    font-size:13px; font-weight:600; color:var(--green-600);
-    display:inline-flex; align-items:center; gap:5px;
-  }
-  .posting-link svg{ width:13px; height:13px; }
+  .posting-row{ border:1px solid var(--line); padding:18px 20px; margin-bottom:10px; background:var(--white); }
+  .posting-top{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .posting-title{ font-size:15px; font-weight:600; }
+  .posting-loc{ font-size:12.5px; color:var(--sage); margin-top:2px; }
+  .posting-link{ font-size:12.5px; font-weight:600; color:var(--ink); display:inline-flex; align-items:center; gap:5px; border-bottom:1px solid var(--ink); padding-bottom:1px; }
+  .posting-link svg{ width:12px; height:12px; }
 
   .skills-row{ margin-top:14px; display:flex; flex-wrap:wrap; gap:8px; }
-  .skill-chip{
-    font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px;
-    background:var(--green-050); color:var(--green-700); border:1px solid var(--green-100);
-  }
-  .skills-note{ font-size:12px; color:var(--muted-2); margin-top:8px; }
+  .skill-chip{ font-size:11.5px; font-weight:600; padding:5px 11px; border-radius:999px; background:var(--paper-2); color:var(--ink); border:1px solid var(--line-2); }
+  .skills-note{ font-size:11.5px; color:var(--sage-2); margin-top:8px; }
 
-  .salary-row{
-    margin-top:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-  }
+  .salary-row{ margin-top:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .salary-btn{
-    font-size:13px; font-weight:600; padding:8px 14px; border-radius:var(--radius-sm);
-    border:1px solid var(--line); background:var(--white); color:var(--ink); cursor:pointer;
+    font-size:12.5px; font-weight:600; padding:8px 14px; border-radius:0;
+    border:1px solid var(--ink); background:transparent; color:var(--ink); cursor:pointer;
     display:inline-flex; align-items:center; gap:7px;
-    transition:border-color .18s ease, background .18s ease;
+    transition:background .15s ease, color .15s ease;
   }
-  .salary-btn:hover{ border-color:var(--green-600); background:var(--green-050); }
-  .salary-result{ font-size:13px; color:var(--muted); }
+  .salary-btn:hover{ background:var(--ink); color:var(--lime); }
+  .salary-result{ font-size:12.5px; color:var(--sage); }
   .salary-result.done{ color:var(--ink); font-weight:600; }
-  .salary-source{ font-size:11.5px; color:var(--muted-2); font-weight:400; }
+  .salary-source{ font-size:11px; color:var(--sage-2); font-weight:400; }
 
   /* ---------- empty state ---------- */
-  .empty-hint{
-    text-align:center; padding:60px 20px; color:var(--muted);
-    border:1px dashed var(--line); border-radius:var(--radius-md); font-size:14px;
-  }
+  .empty-hint{ text-align:center; padding:64px 20px; color:var(--sage); border:1px dashed var(--line-2); font-size:14px; }
 
   @media (max-width: 980px){
     .company-grid{ grid-template-columns:repeat(2,1fr); }
-    .stat-strip{ grid-template-columns:1fr; }
+    .stat-strip{ flex-wrap:wrap; }
+    .stat-card{ flex:1 1 45%; }
   }
   @media (max-width: 640px){
     nav.links{ display:none; }
@@ -277,24 +238,17 @@
 </head>
 <body>
 
-  <div class="bg-blob"></div>
+  <div class="grain"></div>
 
   <header class="nav">
     <div class="brand">
-      <span class="mark">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h9l7 7v9H4z"/><path d="M13 4v7h7"/></svg>
-      </span>
-      <span>Scout<span class="ai"> AI</span></span>
+      <span class="mk">Scout</span><span class="ai">AI</span>
     </div>
     <nav class="links">
       <a href="index.html">Dashboard</a>
       <a href="companies.html" class="active">Companies</a>
     </nav>
     <div class="nav-right">
-      <button class="btn-pill">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        New Analysis
-      </button>
       <div class="avatar">M</div>
       <span class="caret">▾</span>
     </div>
@@ -303,12 +257,12 @@
   <main>
     <div class="page-head">
       <div>
-        <div class="eyebrow"><span class="dot"></span> Companies hiring right now</div>
-        <h1 class="headline display">Who's hiring, right now.</h1>
+        <div class="kicker"><span class="n">✓</span> Companies hiring right now</div>
+        <h1 class="headline">Who's hiring, right now.</h1>
         <p class="sub">Live from each company's own Greenhouse or Lever job board. Coverage is limited to companies that use one of these two platforms for public postings — hiring means at least one open role as of the last refresh.</p>
       </div>
       <div class="refresh-meta">
-        Last refreshed <strong id="refreshedAt">just now</strong>
+        Last refreshed <strong id="refreshedAt" style="color:var(--ink);">just now</strong>
         <br>
         <button id="refreshBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6"/><path d="M3.5 12a8.5 8.5 0 0 1 14.5-6M20.5 12a8.5 8.5 0 0 1-14.5 6"/></svg>
@@ -510,21 +464,8 @@
       emptyHint.style.display = "none";
       try {
         const params = new URLSearchParams({ role, location: loc });
-        let data = await (await fetch(`${API_BASE}/api/companies/search?${params}`)).json();
-
-        // Index isn't built yet -- a background task was just kicked off
-        // to build it (embedding thousands of postings takes too long to
-        // do inline within one request). Poll every few seconds until
-        // it's ready instead of treating this as "no results."
-        let pollCount = 0;
-        while (data.building && pollCount < 60){
-          gridCount.textContent = "Indexing postings for search… (this can take a couple minutes on first search)";
-          if (data.last_error) console.warn("Index build error (will retry):", data.last_error);
-          await new Promise(r => setTimeout(r, 3000));
-          data = await (await fetch(`${API_BASE}/api/companies/search?${params}`)).json();
-          pollCount++;
-        }
-
+        const res = await fetch(`${API_BASE}/api/companies/search?${params}`);
+        const data = await res.json();
         if (!data.indexed){
           emptyHint.style.display = "block";
           emptyHint.textContent = "No postings indexed yet — click Refresh postings first.";
@@ -579,45 +520,20 @@
     renderGrid(COMPANIES);
   }
 
-  function pollRefreshStatus(){
-    return new Promise((resolve, reject)=>{
-      const check = async ()=>{
-        try {
-          const res = await fetch(`${API_BASE}/api/companies/refresh-status`);
-          const data = await res.json();
-          if (data.state === "done" || data.state === "error"){
-            resolve(data);
-          } else {
-            setTimeout(check, 3000);
-          }
-        } catch (e) {
-          reject(e);
-        }
-      };
-      check();
-    });
-  }
-
   document.getElementById('refreshBtn').addEventListener('click', async ()=>{
     const btn = document.getElementById('refreshBtn');
     btn.disabled = true;
     const originalHtml = btn.innerHTML;
     btn.innerHTML = "Refreshing…";
     try {
-      await fetch(`${API_BASE}/api/companies/refresh`, { method: "POST" });
-      // The fetch above returns almost immediately ({"status": "started"})
-      // -- the actual company-by-company fetching runs as a background
-      // task on the server, since it routinely takes longer than a
-      // single HTTP request should. Poll refresh-status until it's done.
-      const data = await pollRefreshStatus();
+      const res = await fetch(`${API_BASE}/api/companies/refresh`, { method: "POST" });
+      const data = await res.json();
       COMPANIES = data.companies;
       Object.keys(POSTINGS_CACHE).forEach(k => delete POSTINGS_CACHE[k]);
       renderStats(COMPANIES);
       renderGrid(COMPANIES);
       document.getElementById('refreshedAt').textContent = "just now";
-      if (data.state === "error"){
-        alert("Refresh failed on the backend — check server logs.");
-      } else if (data.failures && Object.keys(data.failures).length){
+      if (data.failures && Object.keys(data.failures).length){
         console.warn("Some companies failed to refresh:", data.failures);
       }
     } catch (e) {

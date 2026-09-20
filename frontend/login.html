@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scout AI — Sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0B0F0D;
+    --paper:#F6F5F0;
+    --paper-2:#EFEDE4;
+    --lime:#D9FF5C;
+    --sage:#8A8F87;
+    --sage-2:#B7BBB2;
+    --line:#DEDACB;
+    --line-2:#CFCABA;
+    --white:#FFFFFF;
+    --red:#B4232C;
+    --red-bg:#F7E6E4;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--paper); color:var(--ink); position:relative; overflow:hidden;
+  }
+  .grain{
+    position:fixed; inset:0; z-index:0; pointer-events:none; opacity:0.035; mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  ::selection{ background:var(--ink); color:var(--lime); }
+  :focus-visible{ outline:2px solid var(--ink); outline-offset:2px; }
+
+  .card{
+    position:relative; z-index:1;
+    width:100%; max-width:400px; background:var(--white); border:1px solid var(--ink);
+    padding:38px;
+  }
+  .brand{ display:flex; align-items:baseline; gap:2px; font-size:19px; font-weight:600; margin-bottom:36px; }
+  .brand .mk{ font-family:'Fraunces', serif; font-weight:600; }
+  .brand .ai{
+    font-family:'Inter', sans-serif; font-size:10px; font-weight:700;
+    letter-spacing:0.06em; background:var(--ink); color:var(--lime);
+    padding:2px 6px; border-radius:3px; margin-left:8px; transform:translateY(-6px);
+    display:inline-block;
+  }
+  h1{ font-size:26px; margin:0 0 6px; font-family:'Fraunces',serif; font-weight:600; }
+  .sub{ color:var(--sage); font-size:13.5px; margin:0 0 26px; line-height:1.5; }
+  label{ display:block; font-size:12px; font-weight:600; margin-bottom:7px; margin-top:16px; letter-spacing:0.02em; }
+  input{
+    width:100%; padding:11px 13px; border:1px solid var(--line-2); border-radius:0;
+    font-size:14px; outline:none; background:var(--paper); font-family:'Inter',sans-serif; color:var(--ink);
+  }
+  input:focus{ border-color:var(--ink); background:var(--white); }
+  .btn-primary{
+    width:100%; margin-top:22px; padding:13px; background:var(--ink); color:var(--lime);
+    border:none; border-radius:999px; font-size:14px; font-weight:700; cursor:pointer;
+    transition:background .15s ease, transform .15s ease; font-family:'Inter',sans-serif;
+  }
+  .btn-primary:hover:not(:disabled){ background:#141B16; transform:translateY(-1px); }
+  .btn-primary:disabled{ background:var(--sage-2); color:var(--white); cursor:not-allowed; }
+  .btn-google{
+    width:100%; margin-top:14px; padding:11px; background:var(--white); color:var(--ink);
+    border:1px solid var(--line-2); border-radius:999px; font-size:13.5px; font-weight:600;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .btn-google:hover{ border-color:var(--ink); background:var(--paper-2); }
+  .divider{ display:flex; align-items:center; gap:10px; margin:22px 0; color:var(--sage-2); font-size:11.5px; }
+  .divider::before, .divider::after{ content:""; flex:1; height:1px; background:var(--line); }
+  .toggle{ text-align:center; margin-top:22px; font-size:13px; color:var(--sage); }
+  .toggle a{ color:var(--ink); cursor:pointer; font-weight:600; text-decoration:underline; text-underline-offset:2px; }
+  .error{ color:var(--red); font-size:12.5px; margin-top:12px; padding:10px 12px; background:var(--red-bg); border-left:2px solid var(--red); display:none; }
+  .success{ color:#3F7A3A; font-size:12.5px; margin-top:12px; padding:10px 12px; background:#E5F0E1; border-left:2px solid #3F7A3A; display:none; }
+</style>
+</head>
+<body>
+  <div class="grain"></div>
+  <div class="card">
+    <div class="brand"><span class="mk">Scout</span><span class="ai">AI</span></div>
+    <h1 id="formTitle">Welcome back</h1>
+    <p class="sub" id="formSub">Sign in to see your resume-ranking history.</p>
+
+    <button class="btn-google" id="googleBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.7-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.1-4 1.1-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1C3.4 21.3 7.4 24 12 24z"/><path fill="#FBBC05" d="M5.4 14.3c-.2-.7-.4-1.5-.4-2.3s.1-1.6.4-2.3V6.6H1.4C.5 8.3 0 10.1 0 12s.5 3.7 1.4 5.4l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.7 0 3.3.6 4.5 1.8l3.4-3.4C17.9 1.2 15.2 0 12 0 7.4 0 3.4 2.7 1.4 6.6l4 3.1c.9-2.8 3.5-4.9 6.6-4.9z"/></svg>
+      Continue with Google
+    </button>
+
+    <div class="divider">or</div>
+
+    <form id="authForm">
+      <label for="email">Email</label>
+      <input type="email" id="email" required placeholder="you@example.com">
+      <label for="password">Password</label>
+      <input type="password" id="password" required placeholder="••••••••" minlength="6">
+      <button type="submit" class="btn-primary" id="submitBtn">Sign in</button>
+      <div class="error" id="errorMsg"></div>
+      <div class="success" id="successMsg"></div>
+    </form>
+
+    <div class="toggle" id="toggleRow">
+      Don't have an account? <a id="toggleLink">Sign up</a>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // Fill these in from Supabase dashboard -> Project Settings -> API.
+    // SUPABASE_ANON_KEY is a PUBLIC key, safe to expose here.
+    const SUPABASE_URL = "https://itlxwaictkckmuxpxvxs.supabase.co"; // e.g. https://xxxx.supabase.co
+    const SUPABASE_ANON_KEY = "sb_publishable_4x4kQ2uzmSw_PMnRnYBdiA_CgmrFo74";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let mode = "signin"; // "signin" | "signup"
+
+    // If already logged in, skip straight to the app.
+    (async () => {
+      const { data } = await supabaseClient.auth.getSession();
+      if (data.session) window.location.href = "index.html";
+    })();
+
+    function toggleMode(){
+      mode = mode === "signin" ? "signup" : "signin";
+      document.getElementById('formTitle').textContent = mode === "signin" ? "Welcome back" : "Create an account";
+      document.getElementById('formSub').textContent = mode === "signin"
+        ? "Sign in to see your resume-ranking history."
+        : "Sign up to start ranking and save your history.";
+      document.getElementById('submitBtn').textContent = mode === "signin" ? "Sign in" : "Sign up";
+      document.getElementById('toggleRow').innerHTML = mode === "signin"
+        ? `Don't have an account? <a id="toggleLink">Sign up</a>`
+        : `Already have an account? <a id="toggleLink">Sign in</a>`;
+      document.getElementById('errorMsg').style.display = "none";
+      document.getElementById('successMsg').style.display = "none";
+    }
+    // Event delegation on the container so this keeps working after the
+    // link's innerHTML (and therefore its DOM node) is replaced above.
+    document.getElementById('toggleRow').addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'toggleLink') toggleMode();
+    });
+
+    document.getElementById('googleBtn').addEventListener('click', async () => {
+      await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + "/index.html" },
+      });
+    });
+
+    document.getElementById('authForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorEl = document.getElementById('errorMsg');
+      const successEl = document.getElementById('successMsg');
+      errorEl.style.display = "none";
+      successEl.style.display = "none";
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+
+      try {
+        if (mode === "signin") {
+          const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          window.location.href = "index.html";
+        } else {
+          const { error } = await supabaseClient.auth.signUp({ email, password });
+          if (error) throw error;
+          successEl.textContent = "Account created — check your email to confirm, then sign in.";
+          successEl.style.display = "block";
+        }
+      } catch (err) {
+        errorEl.textContent = err.message || "Something went wrong.";
+        errorEl.style.display = "block";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

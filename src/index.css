@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --color-ink: #0B0F0D;
+  --color-paper: #F6F5F0;
+  --color-paper-2: #EFEDE4;
+  --color-lime: #D9FF5C;
+  --color-lime-dim: #EBFFAE;
+  --color-sage: #8A8F87;
+  --color-sage-2: #B7BBB2;
+  --color-pine: #1C2620;
+  --color-line: #DEDACB;
+  --color-line-2: #CFCABA;
+  --color-red: #B4232C;
+  --color-red-bg: #F7E6E4;
+  --color-amber: #8A5E0C;
+  --color-amber-bg: #F3ECD6;
+  --color-green-ok: #3F7A3A;
+  --color-green-ok-bg: #E5F0E1;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--color-ink);
+    color: var(--color-lime);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .serif {
+    font-family: var(--font-serif);
+    letter-spacing: -0.01em;
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}

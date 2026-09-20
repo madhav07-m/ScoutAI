@@ -1,9 +1,18 @@
 """
 Phase 4 — Vector storage & similarity search.
 
-Uses an in-memory/ephemeral ChromaDB client, one collection per
-matching "session" (i.e., per JD + batch of resumes), since this is a
-stateless Streamlit app rather than a persistent service.
+One small in-memory index per matching "session" (i.e., per JD + batch
+of resumes): a NumPy matrix of L2-normalised chunk embeddings plus
+parallel lists of doc names / section names. Cosine similarity is then
+just a matrix-vector product.
+
+This replaces the earlier ephemeral ChromaDB collection. For a few
+hundred chunks a brute-force dot product is exact (no approximate
+index), takes well under a millisecond, and avoids Chroma's ~60 MB
+import cost. It also avoids a leak: chromadb.EphemeralClient() shares
+one in-process system, so every collection created per ranking run
+stayed alive for the life of the server. Here, an index is garbage
+collected as soon as the request that built it is done.
 
 Pooling decision: chunk-level MAX-POOLING, not averaging.
 
@@ -20,52 +29,55 @@ one lucky section in an otherwise weak resume, which is exactly why
 Phase 5's normalization step exists on top of it.
 """
 
-import uuid
 from typing import Dict, List
 
-import chromadb
 import numpy as np
 
 from app.embeddings import embed_texts
 
 
-def build_collection(chunks: List[dict]):
-    """Embed a list of resume chunk records and store them in a fresh
-    ephemeral ChromaDB collection. Each chunk dict must have
-    doc_name, section, text.
+def normalize_rows(vectors: np.ndarray) -> np.ndarray:
+    """L2-normalise each row (float32) so that a dot product IS the
+    cosine similarity -- the same thing Chroma's "cosine" space did."""
+    vectors = np.asarray(vectors, dtype=np.float32)
+    if vectors.size == 0:
+        return vectors
+    norms = np.linalg.norm(vectors, axis=-1, keepdims=True)
+    return vectors / np.maximum(norms, 1e-12)
+
+
+class ChunkIndex:
+    """In-memory index of resume chunks. Exposes count() so callers that
+    used to call collection.count() keep working unchanged."""
+
+    def __init__(self, vectors: np.ndarray, doc_names: List[str], sections: List[str]):
+        self.vectors = vectors
+        self.doc_names = doc_names
+        self.sections = sections
+
+    def count(self) -> int:
+        return len(self.doc_names)
+
+
+def build_collection(chunks: List[dict]) -> ChunkIndex:
+    """Embed a list of resume chunk records and hold them in an
+    in-memory ChunkIndex. Each chunk dict must have doc_name, section,
+    text.
     """
-    client = chromadb.EphemeralClient()
-    collection_name = f"resumes_{uuid.uuid4().hex[:8]}"
-    # IMPORTANT: Chroma defaults to L2 (squared Euclidean) distance if
-    # not told otherwise. score_resumes_against_jd() below assumes
-    # cosine distance (similarity = 1 - dist), so without this explicit
-    # metadata, "dist" is an L2 distance, similarity goes deeply
-    # negative, and every Fit Score gets clamped to 0 in ranking.py.
-    collection = client.create_collection(
-        collection_name,
-        metadata={"hnsw:space": "cosine"},
+    if not chunks:
+        return ChunkIndex(np.zeros((0, 0), dtype=np.float32), [], [])
+
+    vectors = normalize_rows(embed_texts([c["text"] for c in chunks]))
+    return ChunkIndex(
+        vectors,
+        [c["doc_name"] for c in chunks],
+        [c["section"] for c in chunks],
     )
 
-    texts = [c["text"] for c in chunks]
-    if not texts:
-        return collection
 
-    vectors = embed_texts(texts)
-    ids = [f"{c['doc_name']}::{c['section']}::{i}" for i, c in enumerate(chunks)]
-    metadatas = [{"doc_name": c["doc_name"], "section": c["section"]} for c in chunks]
-
-    collection.add(
-        ids=ids,
-        embeddings=vectors.tolist(),
-        documents=texts,
-        metadatas=metadatas,
-    )
-    return collection
-
-
-def score_resumes_against_jd(collection, jd_chunks: List[dict]) -> Dict[str, dict]:
-    """For each JD chunk, query the resume-chunk collection and record
-    the best (max) similarity score seen per resume, per JD section —
+def score_resumes_against_jd(collection: ChunkIndex, jd_chunks: List[dict]) -> Dict[str, dict]:
+    """For each JD chunk, score every resume chunk against it and record
+    the best (max) similarity seen per resume, per JD section —
     implementing the max-pooling decision described above.
 
     Returns: {
@@ -76,28 +88,22 @@ def score_resumes_against_jd(collection, jd_chunks: List[dict]) -> Dict[str, dic
     }
     """
     results: Dict[str, dict] = {}
+    if collection.count() == 0 or not jd_chunks:
+        return results
 
-    for jd_chunk in jd_chunks:
-        jd_vector = embed_texts([jd_chunk["text"]])[0]
-        query_result = collection.query(
-            query_embeddings=[jd_vector.tolist()],
-            n_results=max(collection.count(), 1),
-        )
+    jd_vectors = normalize_rows(embed_texts([c["text"] for c in jd_chunks]))
 
-        ids = query_result["ids"][0]
-        distances = query_result["distances"][0]  # cosine distance (1 - cos_sim) for normalized vectors
-        metadatas = query_result["metadatas"][0]
+    for jd_chunk, jd_vector in zip(jd_chunks, jd_vectors):
+        similarities = collection.vectors @ jd_vector  # cosine sim, one per resume chunk
+        jd_section = jd_chunk["section"]
 
-        for _id, dist, meta in zip(ids, distances, metadatas):
-            similarity = 1 - dist  # convert distance back to cosine similarity
-            doc_name = meta["doc_name"]
-            section = meta["section"]
+        for doc_name, section, sim in zip(collection.doc_names, collection.sections, similarities):
+            similarity = float(sim)
 
             entry = results.setdefault(doc_name, {"best_score": -1.0, "section_matches": {}})
             if similarity > entry["best_score"]:
                 entry["best_score"] = similarity
 
-            jd_section = jd_chunk["section"]
             current = entry["section_matches"].get(jd_section)
             if current is None or similarity > current[1]:
                 entry["section_matches"][jd_section] = (section, similarity)
