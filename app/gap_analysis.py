@@ -23,6 +23,20 @@ of sampling, which makes output effectively deterministic in
 practice — the same input should now reliably produce the same score,
 which matters for reproducibility (e.g. re-running Phase 7 evaluation
 and getting comparable numbers).
+
+HARD 2-MINUTE OVERALL BUDGET: earlier versions capped each individual
+attempt at 60s (via request_options timeout) but let retries/backoff
+stack on top of that uncapped — worst case (3 attempts x 60s + 2s +
+4s backoff) could run ~186s, well past 2 minutes, and each hung/slow
+call held memory (the model object, buffered response, thread state)
+for that whole time. On a memory-constrained host (e.g. Render's free
+tier), a few resumes each taking 3 minutes compounds fast. Fixed by
+tracking real elapsed wall time against a single MAX_TOTAL_SECONDS
+budget: each attempt's own timeout is clipped to whatever time is
+actually left, and we never start a new attempt or backoff sleep that
+would push total elapsed time past the budget. A single
+generate_gap_analysis() call now cannot exceed ~120s under any
+combination of retries/backoff/transient errors.
 """
 
 import json
@@ -59,6 +73,12 @@ using exactly this schema:
 }}
 """
 
+# Hard ceiling on total wall time for ONE generate_gap_analysis() call,
+# across every attempt and every backoff sleep combined. Not just a
+# per-attempt timeout -- see module docstring for why that distinction
+# matters (per-attempt timeouts alone let retries stack past this).
+MAX_TOTAL_SECONDS = 120
+
 
 def configure_gemini(api_key: str):
     genai.configure(api_key=api_key)
@@ -68,14 +88,38 @@ def _format_sections(sections: Dict[str, str]) -> str:
     return "\n\n".join(f"[{name}]\n{text}" for name, text in sections.items())
 
 
+def _is_transient(error_text: str) -> bool:
+    return (
+        "503" in error_text or "overloaded" in error_text or "high demand" in error_text
+        or "504" in error_text or "deadline" in error_text
+    )
+
+
+def _is_quota(error_text: str) -> bool:
+    return "429" in error_text or "quota" in error_text
+
+
 def generate_gap_analysis(
     jd_sections: Dict[str, str],
     matched_resume_sections: Dict[str, str],
     model_name: str = "gemini-3.5-flash",
+    max_total_seconds: int = MAX_TOTAL_SECONDS,
 ) -> dict:
     """Call Gemini with only the matched/grounded chunks and parse the
     structured JSON response. Falls back to a safe default dict if
-    parsing fails, rather than crashing the whole ranking table.
+    parsing fails OR if the call fails/times out, rather than crashing
+    the whole ranking table.
+
+    Timing guarantee: this function will not run for longer than
+    ~max_total_seconds (default 120s / 2 minutes) wall-clock, no
+    matter how many transient errors it hits. It tracks real elapsed
+    time against that single budget rather than giving each retry its
+    own independent timeout, so attempts/backoff can't silently stack
+    past the intended cap. We deliberately do NOT retry 429/quota
+    errors at all: those won't resolve by retrying within the same
+    budget (the daily cap is exhausted) and retrying would just burn
+    more of that already-exhausted quota for nothing -- a quota error
+    fails immediately, using none of the 2-minute budget on retries.
 
     Model default note: gemini-3.5-flash's free-tier daily quota was
     observed at just 20 requests/day at one point (Google's newest
@@ -92,51 +136,76 @@ def generate_gap_analysis(
 
     model = genai.GenerativeModel(model_name)
 
-    # Manual, limited retry -- for transient errors: 503 "model is
-    # currently experiencing high demand", and 504 "deadline expired"
-    # (our own timeout below being hit due to slow network/API
-    # latency, not necessarily Google's fault). Both are usually
-    # transient and worth one or two retries. We deliberately do NOT
-    # retry 429/quota errors: those won't resolve by retrying (the
-    # daily cap is exhausted) and retrying would just burn more of the
-    # same already-exhausted quota for nothing. The SDK's own
-    # automatic retry is still disabled (retry=None) so we stay in
-    # full control of exactly which errors get retried and how many
-    # times.
-    max_attempts = 3  # 1 initial try + 2 retries, transient-errors-only
+    start = time.monotonic()
+
+    def remaining() -> float:
+        return max_total_seconds - (time.monotonic() - start)
+
+    max_attempts = 3
     backoff_seconds = 2
-    timeout_seconds = 60  # raised from 30 -- observed real responses taking close to that under normal (non-error) conditions
+    per_attempt_cap = 60  # a single attempt can never eat the WHOLE budget
 
     last_error = None
-    for attempt in range(1, max_attempts + 1):
+    response = None
+
+    attempt = 0
+    while attempt < max_attempts:
+        attempt += 1
+        time_left = remaining()
+
+        if time_left <= 0:
+            last_error = TimeoutError(
+                f"Gemini gap analysis exceeded the {max_total_seconds}s overall "
+                f"budget before attempt {attempt} could start."
+            )
+            break
+
+        # Never let one attempt's own timeout exceed what's actually
+        # left of the overall budget -- this is what actually enforces
+        # the hard cap, not just the per-attempt number.
+        this_attempt_timeout = min(per_attempt_cap, time_left)
+
         try:
             response = model.generate_content(
                 prompt,
                 generation_config=GenerationConfig(temperature=0),
-                request_options={"timeout": timeout_seconds, "retry": None},
+                request_options={"timeout": this_attempt_timeout, "retry": None},
             )
             last_error = None
             break
         except Exception as e:
             last_error = e
             err_text = str(e).lower()
-            is_transient = (
-                "503" in str(e) or "overloaded" in err_text or "high demand" in err_text
-                or "504" in str(e) or "deadline" in err_text
-            )
-            is_quota = "429" in str(e) or "quota" in err_text
-            if is_quota or not is_transient or attempt == max_attempts:
-                # quota errors, non-transient errors, or out of retries -> stop now
-                break
-            time.sleep(backoff_seconds * attempt)  # 2s, then 4s
+            is_transient = _is_transient(err_text)
+            is_quota = _is_quota(err_text)
 
-    if last_error is not None:
+            if is_quota or not is_transient or attempt == max_attempts:
+                # quota errors, non-transient errors, or out of
+                # attempts -> stop now, no point spending more budget.
+                break
+
+            backoff = backoff_seconds * attempt
+            if remaining() - backoff <= 0:
+                # Not enough budget left to sleep AND make another
+                # attempt worth anything -- stop now instead of
+                # sleeping past the cap for a retry that would get cut
+                # off anyway.
+                last_error = TimeoutError(
+                    f"Gemini gap analysis stopped retrying: a further "
+                    f"{backoff}s backoff would exceed the "
+                    f"{max_total_seconds}s overall budget."
+                )
+                break
+            time.sleep(backoff)
+
+    if last_error is not None or response is None:
         return {
             "fit_score": None,
             "strengths": [],
             "gaps": [f"Gemini request failed or timed out: {last_error}"],
             "suggestions": [],
         }
+
     raw = response.text.strip()
 
     # Strip accidental markdown fences if the model adds them anyway
