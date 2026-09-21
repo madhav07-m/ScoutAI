@@ -57,6 +57,13 @@ export default function Results({ data, sessionId, geminiKey, readOnly, onStartO
             each resume finishes.
           </div>
         )}
+        {gap_status === 'error' && (
+          <div className="text-[13px] px-4 py-3 border-l-2 border-amber bg-amber-bg text-amber">
+            ⚠️ Gap analysis failed to run for this batch{gemini_error ? `: ${gemini_error}` : '.'} Fit scores
+            above are still valid — try the Regenerate button on an individual resume below, or start a new
+            analysis.
+          </div>
+        )}
       </div>
 
       <div className="flex border-t border-ink border-b border-line mb-9">
