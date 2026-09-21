@@ -180,6 +180,7 @@ def _serialize_ranked(session: dict) -> List[dict]:
 
 @app.post("/api/rank")
 async def rank_resumes(
+    background_tasks: BackgroundTasks,
     jd: UploadFile = File(...),
     resumes: List[UploadFile] = File(...),
     gemini_key: Optional[str] = Form(None),
@@ -229,38 +230,24 @@ async def rank_resumes(
         "gemini_key": gemini_key,
         "low_extraction_docs": low_extraction_docs,
         "ocr_used_docs": ocr_used_docs,
+        # pending: gap analysis hasn't started yet (queued as a background
+        # task below). running: in progress. done: every resume has a
+        # report (or a per-resume failure message). skipped: no Gemini
+        # key was provided at all, so gap analysis was never attempted.
+        # See _run_gap_analysis_batch below for why this is a background
+        # task rather than inline: with up to 120s allowed per resume
+        # (see app/gap_analysis.py's MAX_TOTAL_SECONDS), N resumes run
+        # sequentially can take up to N*120s, which routinely exceeds
+        # Render's request timeout -- the exact same problem that
+        # /api/companies/refresh already had to solve the same way.
+        "gap_status": "pending" if gemini_key else "skipped",
+        "gap_error": None,
     }
     SESSIONS[session_id] = session
     save_session(session_id, session)
 
-    gemini_error = None
     if gemini_key:
-        try:
-            configure_gemini(gemini_key)
-            quota_exhausted = False
-            for r in ranked:
-                if quota_exhausted:
-                    session["gap_reports"][r["doc_name"]] = {
-                        "fit_score": None,
-                        "strengths": [],
-                        "gaps": ["Skipped: Gemini daily quota already exhausted earlier in this batch. Try again after the quota resets, or switch to a model with a higher free-tier limit."],
-                        "suggestions": [],
-                    }
-                    continue
-                try:
-                    session["gap_reports"][r["doc_name"]] = _run_gap_analysis(session, r)
-                except Exception as e:  # noqa: BLE001 - surfaced per-resume, like the Streamlit version
-                    if "429" in str(e) or "quota" in str(e).lower():
-                        quota_exhausted = True
-                    session["gap_reports"][r["doc_name"]] = {
-                        "fit_score": None,
-                        "strengths": [],
-                        "gaps": [f"Gap analysis failed: {e}"],
-                        "suggestions": [],
-                    }
-        except Exception as e:  # noqa: BLE001
-            gemini_error = str(e)
-        save_session(session_id, session)
+        background_tasks.add_task(_run_gap_analysis_batch, session_id)
 
     counts = {"Strong": 0, "Average": 0, "Weak": 0}
     for row in _serialize_ranked(session):
@@ -274,7 +261,85 @@ async def rank_resumes(
         "low_extraction_docs": low_extraction_docs,
         "ocr_used_docs": ocr_used_docs,
         "has_gemini_key": bool(gemini_key),
-        "gemini_error": gemini_error,
+        # gap analysis is no longer finished by the time this response is
+        # sent (see gap_status above) -- the frontend should poll
+        # GET /api/rank/{session_id}/gap-status until gap_status is
+        # "done", re-fetching "ranked" each time to pick up llm_score /
+        # gap_report fields as each resume's report completes.
+        "gap_status": session["gap_status"],
+        "gemini_error": None,
+    }
+
+
+def _run_gap_analysis_batch(session_id: str):
+    """Runs the actual Gemini calls for every ranked resume in a
+    session, one at a time, as a background task -- see the comment on
+    "gap_status" in rank_resumes() above for why this can't run inline
+    in the request. Saves the session after EVERY resume (not just at
+    the end) so a poller sees partial progress, and so a mid-batch
+    crash/restart doesn't lose already-completed reports.
+    """
+    session = SESSIONS.get(session_id) or load_session(session_id)
+    if session is None:
+        return
+    SESSIONS[session_id] = session
+
+    gemini_key = session.get("gemini_key")
+    session["gap_status"] = "running"
+    save_session(session_id, session)
+
+    try:
+        configure_gemini(gemini_key)
+        quota_exhausted = False
+        for r in session["ranked"]:
+            if quota_exhausted:
+                session["gap_reports"][r["doc_name"]] = {
+                    "fit_score": None,
+                    "strengths": [],
+                    "gaps": ["Skipped: Gemini daily quota already exhausted earlier in this batch. Try again after the quota resets, or switch to a model with a higher free-tier limit."],
+                    "suggestions": [],
+                }
+                save_session(session_id, session)
+                continue
+            try:
+                session["gap_reports"][r["doc_name"]] = _run_gap_analysis(session, r)
+            except Exception as e:  # noqa: BLE001 - surfaced per-resume, like the Streamlit version
+                if "429" in str(e) or "quota" in str(e).lower():
+                    quota_exhausted = True
+                session["gap_reports"][r["doc_name"]] = {
+                    "fit_score": None,
+                    "strengths": [],
+                    "gaps": [f"Gap analysis failed: {e}"],
+                    "suggestions": [],
+                }
+            save_session(session_id, session)
+        session["gap_status"] = "done"
+    except Exception as e:  # noqa: BLE001
+        session["gap_error"] = str(e)
+        session["gap_status"] = "error"
+    save_session(session_id, session)
+    gc.collect()
+
+
+@app.get("/api/rank/{session_id}/gap-status")
+async def rank_gap_status(session_id: str):
+    """Poll this after /api/rank returns with gap_status != 'done' (or
+    'skipped'). Returns the same 'ranked' shape as /api/rank so the
+    frontend can just re-render the table with each poll -- llm_score
+    and gap_report fields fill in progressively as each resume's
+    report completes, rather than all appearing at once at the end.
+    """
+    session = _get_session(session_id)
+    counts = {"Strong": 0, "Average": 0, "Weak": 0}
+    serialized = _serialize_ranked(session)
+    for row in serialized:
+        counts[row["match_category"]] += 1
+    return {
+        "session_id": session_id,
+        "ranked": serialized,
+        "counts": counts,
+        "gap_status": session.get("gap_status", "skipped"),
+        "gemini_error": session.get("gap_error"),
     }
 
 

@@ -3,7 +3,7 @@ import Badge from './Badge'
 import GapCard from './GapCard'
 
 export default function Results({ data, sessionId, geminiKey, readOnly, onStartOver, onGapUpdated }) {
-  const { ranked, counts, low_extraction_docs, ocr_used_docs, has_gemini_key, gemini_error, viewedAt } = data
+  const { ranked, counts, low_extraction_docs, ocr_used_docs, has_gemini_key, gemini_error, gap_status, viewedAt } = data
 
   return (
     <section className="relative z-[2] max-w-[1120px] mx-auto px-5 sm:px-14 pb-24">
@@ -48,6 +48,13 @@ export default function Results({ data, sessionId, geminiKey, readOnly, onStartO
         {gemini_error && (
           <div className="text-[13px] px-4 py-3 border-l-2 border-amber bg-amber-bg text-amber">
             ⚠️ Gemini setup failed: {gemini_error}
+          </div>
+        )}
+        {(gap_status === 'pending' || gap_status === 'running') && (
+          <div className="text-[13px] px-4 py-3 border-l-2 border-ink bg-paper-2 text-[#3D423E] flex items-center gap-2">
+            <span className="inline-block w-3 h-3 border-2 border-ink border-t-transparent rounded-full animate-spin" />
+            Gap analysis is still running in the background — LLM scores and reports below will fill in as
+            each resume finishes.
           </div>
         )}
       </div>

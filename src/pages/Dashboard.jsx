@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import ProgressRing from '../components/ProgressRing'
 import Results from '../components/Results'
 import HistoryPanel from '../components/HistoryPanel'
-import { rankResumes } from '../lib/api'
+import { rankResumes, getRankGapStatus } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
@@ -30,8 +30,14 @@ export default function Dashboard() {
   const resumesInputRef = useRef(null)
   const [jdName, setJdName] = useState('')
   const [resumeNames, setResumeNames] = useState([])
+  // Guards the self-rescheduling gap-analysis poll below: flipped to
+  // true whenever the user starts over or kicks off a new ranking run,
+  // so a stale poll loop from a previous run can't keep overwriting
+  // `results` after the user has already moved on.
+  const pollCancelledRef = useRef(false)
 
   function resetToForm() {
+    pollCancelledRef.current = true
     setView('form')
     setResults(null)
     setSessionId(null)
@@ -57,6 +63,7 @@ export default function Dashboard() {
     setView('loading')
     setProgress(8)
     setStatusText(STATUS_STEPS[0])
+    pollCancelledRef.current = false
 
     // Simulated step progression while the request is in flight — the
     // backend doesn't stream progress, so this gives an honest sense of
@@ -89,11 +96,57 @@ export default function Dashboard() {
       }
 
       setTimeout(() => setView('results'), 500)
+
+      // /api/rank now returns fast (fit scores/ranking only) and runs
+      // gap analysis as a backend background task -- see api.js's
+      // getRankGapStatus for why. If it's not already done (or was
+      // never started because no Gemini key was given), poll for
+      // progress and merge each response into `results` so llm_score /
+      // gap_report fill in per-resume as they complete, instead of the
+      // page just sitting there with no feedback for up to a couple
+      // minutes per resume.
+      if (data.gap_status === 'pending' || data.gap_status === 'running') {
+        pollGapStatus(data.session_id)
+      }
     } catch (err) {
       clearInterval(interval)
       setError(err.message)
       setView('form')
     }
+  }
+
+  // Self-rescheduling (via its own setTimeout) rather than driven by a
+  // useEffect dependency array — same reasoning as the companies-page
+  // search-index poll in Companies.jsx: if a poll receives the same
+  // gap_status value the state already holds, a dependency-array-driven
+  // effect can silently stop re-running (React bails out on
+  // Object.is-equal state updates), stalling the poll. Rescheduling
+  // itself has no such failure mode.
+  function pollGapStatus(sid) {
+    const POLL_INTERVAL_MS = 3000
+
+    async function tick() {
+      if (pollCancelledRef.current) return
+      try {
+        const status = await getRankGapStatus({ sessionId: sid })
+        if (pollCancelledRef.current) return
+
+        setResults((prev) => (prev ? { ...prev, ...status, viewedAt: prev.viewedAt } : prev))
+
+        if (status.gap_status === 'running' || status.gap_status === 'pending') {
+          setTimeout(tick, POLL_INTERVAL_MS)
+        }
+        // "done" / "error" / "skipped" -> stop polling, last update already applied above
+      } catch (err) {
+        // Transient network hiccup polling status shouldn't nuke the
+        // results the user can already see -- just log and retry once
+        // more instead of giving up on the first failed poll.
+        console.error('Gap analysis status poll failed:', err)
+        if (!pollCancelledRef.current) setTimeout(tick, POLL_INTERVAL_MS)
+      }
+    }
+
+    setTimeout(tick, POLL_INTERVAL_MS)
   }
 
   function handleGapUpdated(docName, gapReport) {

@@ -22,6 +22,21 @@ export async function rankResumes({ jdFile, resumeFiles, geminiKey, accessToken 
   return res.json()
 }
 
+// Gap analysis for a whole ranking batch runs as a backend background
+// task (see backend/main.py's _run_gap_analysis_batch) rather than
+// inline in the /api/rank response, because N resumes x up to 120s of
+// Gemini retries each can exceed the hosting platform's request
+// timeout. /api/rank now returns almost immediately with
+// gap_status: "pending" | "skipped" (no key given) -- poll this
+// endpoint until gap_status is "done" or "error", re-rendering the
+// table on each poll since llm_score / gap_report fill in
+// progressively per resume, not all at once.
+export async function getRankGapStatus({ sessionId }) {
+  const res = await fetch(`${API_BASE}/api/rank/${encodeURIComponent(sessionId)}/gap-status`)
+  if (!res.ok) throw new Error(`Failed to check gap analysis status (${res.status})`)
+  return res.json()
+}
+
 export async function regenerateGapAnalysis({ sessionId, docName, geminiKey }) {
   const params = new URLSearchParams()
   if (geminiKey) params.set('gemini_key', geminiKey)
