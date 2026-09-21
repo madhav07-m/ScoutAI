@@ -129,6 +129,16 @@ async def _warm_embedding_model():
         print(f"Embedding model warmup failed (non-fatal): {e}")
 
 
+def _persistable(session: dict) -> dict:
+    """Copy of a session that is safe to write to the database: without
+    the user's Gemini API key. The key stays in the in-memory SESSIONS
+    entry only (so "regenerate gap analysis" keeps working during that
+    session) and is never stored in Postgres. After a restart it's gone,
+    and the frontend simply sends the key again when the person has one
+    typed in."""
+    return {k: v for k, v in session.items() if k != "gemini_key"}
+
+
 def _content_cache_key(jd_sections: dict, matched_sections: dict) -> str:
     combined = "".join(f"{k}:{v}" for k, v in sorted(jd_sections.items()))
     combined += "||" + "".join(f"{k}:{v}" for k, v in sorted(matched_sections.items()))
@@ -185,6 +195,7 @@ async def rank_resumes(
     gemini_key: Optional[str] = Form(None),
     user: CurrentUser = Depends(get_current_user),
 ):
+    user_gemini_key = gemini_key  # what the person typed, if anything
     gemini_key = gemini_key or os.environ.get("GEMINI_API_KEY")
 
     jd_bytes = await jd.read()
@@ -226,12 +237,12 @@ async def rank_resumes(
         "ranked": ranked,
         "gap_reports": {},
         "gap_reports_by_hash": {},
-        "gemini_key": gemini_key,
+        "gemini_key": user_gemini_key,  # in memory only -- see _persistable()
         "low_extraction_docs": low_extraction_docs,
         "ocr_used_docs": ocr_used_docs,
     }
     SESSIONS[session_id] = session
-    save_session(session_id, session)
+    save_session(session_id, _persistable(session))
 
     gemini_error = None
     if gemini_key:
@@ -260,7 +271,7 @@ async def rank_resumes(
                     }
         except Exception as e:  # noqa: BLE001
             gemini_error = str(e)
-        save_session(session_id, session)
+        save_session(session_id, _persistable(session))
 
     counts = {"Strong": 0, "Average": 0, "Weak": 0}
     for row in _serialize_ranked(session):
@@ -317,7 +328,7 @@ async def regenerate_gap_analysis(session_id: str, doc_name: str, gemini_key: Op
     session["gap_reports"][doc_name] = report
     cache_key = _content_cache_key(session["jd_sections"], matched_sections)
     session.setdefault("gap_reports_by_hash", {})[cache_key] = report
-    save_session(session_id, session)
+    save_session(session_id, _persistable(session))
     return {"doc_name": doc_name, "gap_report": report}
 
 
@@ -464,6 +475,32 @@ async def companies_search(background_tasks: BackgroundTasks, role: str = "", lo
     result["indexed"] = True
     result["building"] = False
     return result
+
+
+# ---------------------------------------------------------------------------
+# Health check (also handy for an uptime pinger). Reports this process's own
+# memory, because Render's free tier doesn't show memory charts.
+# ---------------------------------------------------------------------------
+
+@app.get("/api/health")
+async def health():
+    current = peak = None
+    try:
+        with open("/proc/self/status") as f:  # Linux only (Render); stays null on Windows
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    current = round(int(line.split()[1]) / 1024, 1)
+                elif line.startswith("VmHWM:"):
+                    peak = round(int(line.split()[1]) / 1024, 1)
+    except OSError:
+        pass
+    return {
+        "status": "ok",
+        "memory_mb": current,            # memory in use right now
+        "peak_memory_mb": peak,          # highest since this process started
+        "sessions_in_memory": len(SESSIONS),
+        "postings_indexed": _postings_collection["collection"].count() if _postings_collection["collection"] else 0,
+    }
 
 
 # ---------------------------------------------------------------------------
