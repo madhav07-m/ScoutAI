@@ -21,6 +21,7 @@ Then open http://localhost:8000/ in a browser.
 import gc
 import hashlib
 import os
+import random
 import threading
 import uuid
 from collections import OrderedDict
@@ -399,13 +400,26 @@ async def download_gap_analysis_pdf(session_id: str, doc_name: str):
 
 _index_status = {"state": "idle", "last_error": None}  # idle | building | ready
 
+# Cap how many postings get indexed, to cut memory -- the NumPy matrix
+# itself is small either way (~8MB for 5,500 postings per
+# app/postings_search.py's own numbers), but building the index still
+# means holding `all_postings` (a Python list of dicts) plus embedding
+# whatever isn't already cached, and that transient cost scales with
+# count. Halving it (env-overridable) is a direct, blunt memory lever
+# for a backend that's been sitting too close to Render's free-tier
+# 512MB ceiling. Randomly sampled rather than just taking the first N,
+# so this doesn't systematically favor whichever companies happen to
+# come first in DEFAULT_COMPANIES -- every company gets roughly
+# proportional representation in what's searchable, at the cost of
+# only ~half of all postings being findable at any given time.
+_MAX_INDEXED_POSTINGS = int(os.environ.get("MAX_INDEXED_POSTINGS", "3000"))
+
 
 def _rebuild_postings_index():
     try:
-        # Every posting is indexed now (no cap). The index is a ~8 MB NumPy
-        # matrix, and saved embeddings mean only new/changed postings are
-        # actually embedded -- see app/postings_search.py.
         all_postings = get_all_postings(db_path=DB_PATH)
+        if len(all_postings) > _MAX_INDEXED_POSTINGS:
+            all_postings = random.sample(all_postings, _MAX_INDEXED_POSTINGS)
         _postings_collection["collection"] = build_postings_collection(all_postings)
         _index_status["state"] = "ready"
         _index_status["last_error"] = None
