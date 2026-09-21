@@ -15,6 +15,7 @@ re-run ranking" behavior as before.
 """
 
 import json
+import os
 import time
 from typing import Dict, List, Optional
 
@@ -24,6 +25,23 @@ DB_PATH = "sessions.db"  # kept only for backward compatibility with existing
 # callers that still pass db_path=DB_PATH -- ignored, storage goes through
 # the shared Postgres pool (DATABASE_URL) instead of a SQLite file.
 SESSION_TTL_SECONDS = 7 * 24 * 60 * 60  # 7 days
+
+# Hard cap on how many sessions load_all_sessions() pulls into memory at
+# startup. Without this, every non-expired session (up to 7 days' worth)
+# loads in full -- fit scores, every JD-section/resume-section similarity
+# match, and the complete Gemini gap-analysis text per resume -- and NEVER
+# gets evicted for the life of the process. On Render's free 512MB tier
+# this is a direct OOM contributor: /api/health showed 20 sessions resident
+# and climbing, on top of ~186MB of library baseline, leaving too little
+# headroom for an actual ranking request (parsing files + running the
+# embedding model) to complete without the process getting killed.
+#
+# This only caps what's preloaded at STARTUP. Sessions created during a
+# long-running process (between Render spin-downs) still accumulate in
+# main.py's in-memory SESSIONS dict with no eviction -- capping that too
+# needs a matching change in main.py's /api/rank handler; not done here
+# since this file doesn't touch that dict directly.
+MAX_SESSIONS_IN_MEMORY = int(os.environ.get("MAX_SESSIONS_IN_MEMORY", "10"))
 
 
 def _connect(db_path: str = DB_PATH):
@@ -98,18 +116,28 @@ def load_session(session_id: str, db_path: str = DB_PATH) -> Optional[dict]:
     return json.loads(data)
 
 
-def load_all_sessions(db_path: str = DB_PATH) -> Dict[str, dict]:
-    """Load every non-expired session from disk into a dict, meant to
-    be called once at backend startup to repopulate the in-memory
-    SESSIONS cache so existing session_ids keep working across a
-    restart.
+def load_all_sessions(db_path: str = DB_PATH, limit: int = MAX_SESSIONS_IN_MEMORY) -> Dict[str, dict]:
+    """Load the most recent `limit` non-expired sessions from disk into
+    a dict, meant to be called once at backend startup to repopulate
+    the in-memory SESSIONS cache so existing session_ids keep working
+    across a restart.
+
+    Deliberately capped (not "every non-expired session") -- on a
+    memory-constrained deploy, preloading an unbounded, ever-growing
+    number of full session blobs (each with per-resume scores, section
+    matches, and gap-analysis text) is a direct OOM risk. A session
+    older than what fits in this cap isn't gone -- load_session(id)
+    below still fetches it from Postgres on demand if a request comes
+    in for it; it's just not held in RAM speculatively.
     """
     conn = _connect(db_path)
     try:
         cur = conn.cursor()
         cutoff = time.time() - SESSION_TTL_SECONDS
         cur.execute(
-            "SELECT session_id, data FROM sessions WHERE created_at > %s", (cutoff,)
+            "SELECT session_id, data FROM sessions WHERE created_at > %s "
+            "ORDER BY created_at DESC LIMIT %s",
+            (cutoff, limit),
         )
         rows = cur.fetchall()
         cur.close()

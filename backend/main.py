@@ -23,6 +23,7 @@ import hashlib
 import os
 import threading
 import uuid
+from collections import OrderedDict
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -55,7 +56,13 @@ from app.ranking import (
     classify_match,
     normalize_and_rank,
 )
-from app.session_store import load_all_sessions, load_session, prune_expired, save_session
+from app.session_store import (
+    MAX_SESSIONS_IN_MEMORY,
+    load_all_sessions,
+    load_session,
+    prune_expired,
+    save_session,
+)
 from app.vector_store import build_collection, score_resumes_against_jd
 from app.embeddings import embed_texts
 
@@ -82,7 +89,42 @@ app.add_middleware(
 # original single-user Streamlit app) -- it is lost on server restart
 # and not meant to be a multi-user production session store.
 # ---------------------------------------------------------------------------
-SESSIONS: Dict[str, dict] = {}
+class LRUSessionCache(OrderedDict):
+    """SESSIONS used to be a plain dict -- every new /api/rank call
+    (line ~244 below) and every disk-fallback warm (in _get_session)
+    added an entry that was NEVER evicted for the life of the process.
+    session_store.py's load_all_sessions() cap (MAX_SESSIONS_IN_MEMORY)
+    only bounds what gets preloaded at STARTUP; it does nothing about
+    growth during a long-running process, which is what actually drove
+    /api/health's sessions_in_memory climbing with no ceiling and
+    pushed Render's free 512MB instance toward OOM under real use.
+
+    This caps SESSIONS itself at MAX_SESSIONS_IN_MEMORY, evicting the
+    least-recently-used entry once that's exceeded (both inserting and
+    reading a session count as "used", so an actively-revisited session
+    -- e.g. someone regenerating gap analysis a few times -- won't get
+    evicted out from under them while they're using it). Eviction only
+    drops a session from RAM, not from Postgres: _get_session() already
+    falls back to load_session(id) on a cache miss, so an evicted
+    session transparently reloads from disk (one DB round-trip) the
+    next time it's actually needed, instead of the old 'Session not
+    found' 404.
+    """
+
+    def __setitem__(self, key, value):
+        if key in self:
+            self.move_to_end(key)
+        super().__setitem__(key, value)
+        while len(self) > MAX_SESSIONS_IN_MEMORY:
+            self.popitem(last=False)  # evict least-recently-used
+
+    def get(self, key, default=None):
+        if key in self:
+            self.move_to_end(key)
+        return super().get(key, default)
+
+
+SESSIONS: LRUSessionCache = LRUSessionCache()
 # Same idea for the companies postings search index -- rebuilt whenever
 # companies are refreshed, kept in memory between requests.
 _postings_collection = {"collection": None}
