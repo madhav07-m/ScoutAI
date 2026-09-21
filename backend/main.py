@@ -21,10 +21,8 @@ Then open http://localhost:8000/ in a browser.
 import gc
 import hashlib
 import os
-import random
 import threading
 import uuid
-from collections import OrderedDict
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -57,13 +55,7 @@ from app.ranking import (
     classify_match,
     normalize_and_rank,
 )
-from app.session_store import (
-    MAX_SESSIONS_IN_MEMORY,
-    load_all_sessions,
-    load_session,
-    prune_expired,
-    save_session,
-)
+from app.session_store import load_all_sessions, load_session, prune_expired, save_session
 from app.vector_store import build_collection, score_resumes_against_jd
 from app.embeddings import embed_texts
 
@@ -90,42 +82,7 @@ app.add_middleware(
 # original single-user Streamlit app) -- it is lost on server restart
 # and not meant to be a multi-user production session store.
 # ---------------------------------------------------------------------------
-class LRUSessionCache(OrderedDict):
-    """SESSIONS used to be a plain dict -- every new /api/rank call
-    (line ~244 below) and every disk-fallback warm (in _get_session)
-    added an entry that was NEVER evicted for the life of the process.
-    session_store.py's load_all_sessions() cap (MAX_SESSIONS_IN_MEMORY)
-    only bounds what gets preloaded at STARTUP; it does nothing about
-    growth during a long-running process, which is what actually drove
-    /api/health's sessions_in_memory climbing with no ceiling and
-    pushed Render's free 512MB instance toward OOM under real use.
-
-    This caps SESSIONS itself at MAX_SESSIONS_IN_MEMORY, evicting the
-    least-recently-used entry once that's exceeded (both inserting and
-    reading a session count as "used", so an actively-revisited session
-    -- e.g. someone regenerating gap analysis a few times -- won't get
-    evicted out from under them while they're using it). Eviction only
-    drops a session from RAM, not from Postgres: _get_session() already
-    falls back to load_session(id) on a cache miss, so an evicted
-    session transparently reloads from disk (one DB round-trip) the
-    next time it's actually needed, instead of the old 'Session not
-    found' 404.
-    """
-
-    def __setitem__(self, key, value):
-        if key in self:
-            self.move_to_end(key)
-        super().__setitem__(key, value)
-        while len(self) > MAX_SESSIONS_IN_MEMORY:
-            self.popitem(last=False)  # evict least-recently-used
-
-    def get(self, key, default=None):
-        if key in self:
-            self.move_to_end(key)
-        return super().get(key, default)
-
-
-SESSIONS: LRUSessionCache = LRUSessionCache()
+SESSIONS: Dict[str, dict] = {}
 # Same idea for the companies postings search index -- rebuilt whenever
 # companies are refreshed, kept in memory between requests.
 _postings_collection = {"collection": None}
@@ -170,16 +127,6 @@ async def _warm_embedding_model():
     except Exception as e:  # noqa: BLE001 - don't block startup if this fails; the
         # first real request will just pay the lazy-load cost as before
         print(f"Embedding model warmup failed (non-fatal): {e}")
-
-
-def _persistable(session: dict) -> dict:
-    """Copy of a session that is safe to write to the database: without
-    the user's Gemini API key. The key stays in the in-memory SESSIONS
-    entry only (so "regenerate gap analysis" keeps working during that
-    session) and is never stored in Postgres. After a restart it's gone,
-    and the frontend simply sends the key again when the person has one
-    typed in."""
-    return {k: v for k, v in session.items() if k != "gemini_key"}
 
 
 def _content_cache_key(jd_sections: dict, matched_sections: dict) -> str:
@@ -238,7 +185,6 @@ async def rank_resumes(
     gemini_key: Optional[str] = Form(None),
     user: CurrentUser = Depends(get_current_user),
 ):
-    user_gemini_key = gemini_key  # what the person typed, if anything
     gemini_key = gemini_key or os.environ.get("GEMINI_API_KEY")
 
     jd_bytes = await jd.read()
@@ -280,12 +226,12 @@ async def rank_resumes(
         "ranked": ranked,
         "gap_reports": {},
         "gap_reports_by_hash": {},
-        "gemini_key": user_gemini_key,  # in memory only -- see _persistable()
+        "gemini_key": gemini_key,
         "low_extraction_docs": low_extraction_docs,
         "ocr_used_docs": ocr_used_docs,
     }
     SESSIONS[session_id] = session
-    save_session(session_id, _persistable(session))
+    save_session(session_id, session)
 
     gemini_error = None
     if gemini_key:
@@ -314,7 +260,7 @@ async def rank_resumes(
                     }
         except Exception as e:  # noqa: BLE001
             gemini_error = str(e)
-        save_session(session_id, _persistable(session))
+        save_session(session_id, session)
 
     counts = {"Strong": 0, "Average": 0, "Weak": 0}
     for row in _serialize_ranked(session):
@@ -371,7 +317,7 @@ async def regenerate_gap_analysis(session_id: str, doc_name: str, gemini_key: Op
     session["gap_reports"][doc_name] = report
     cache_key = _content_cache_key(session["jd_sections"], matched_sections)
     session.setdefault("gap_reports_by_hash", {})[cache_key] = report
-    save_session(session_id, _persistable(session))
+    save_session(session_id, session)
     return {"doc_name": doc_name, "gap_report": report}
 
 
@@ -400,26 +346,13 @@ async def download_gap_analysis_pdf(session_id: str, doc_name: str):
 
 _index_status = {"state": "idle", "last_error": None}  # idle | building | ready
 
-# Cap how many postings get indexed, to cut memory -- the NumPy matrix
-# itself is small either way (~8MB for 5,500 postings per
-# app/postings_search.py's own numbers), but building the index still
-# means holding `all_postings` (a Python list of dicts) plus embedding
-# whatever isn't already cached, and that transient cost scales with
-# count. Halving it (env-overridable) is a direct, blunt memory lever
-# for a backend that's been sitting too close to Render's free-tier
-# 512MB ceiling. Randomly sampled rather than just taking the first N,
-# so this doesn't systematically favor whichever companies happen to
-# come first in DEFAULT_COMPANIES -- every company gets roughly
-# proportional representation in what's searchable, at the cost of
-# only ~half of all postings being findable at any given time.
-_MAX_INDEXED_POSTINGS = int(os.environ.get("MAX_INDEXED_POSTINGS", "3000"))
-
 
 def _rebuild_postings_index():
     try:
+        # Every posting is indexed now (no cap). The index is a ~8 MB NumPy
+        # matrix, and saved embeddings mean only new/changed postings are
+        # actually embedded -- see app/postings_search.py.
         all_postings = get_all_postings(db_path=DB_PATH)
-        if len(all_postings) > _MAX_INDEXED_POSTINGS:
-            all_postings = random.sample(all_postings, _MAX_INDEXED_POSTINGS)
         _postings_collection["collection"] = build_postings_collection(all_postings)
         _index_status["state"] = "ready"
         _index_status["last_error"] = None
@@ -531,32 +464,6 @@ async def companies_search(background_tasks: BackgroundTasks, role: str = "", lo
     result["indexed"] = True
     result["building"] = False
     return result
-
-
-# ---------------------------------------------------------------------------
-# Health check (also handy for an uptime pinger). Reports this process's own
-# memory, because Render's free tier doesn't show memory charts.
-# ---------------------------------------------------------------------------
-
-@app.get("/api/health")
-async def health():
-    current = peak = None
-    try:
-        with open("/proc/self/status") as f:  # Linux only (Render); stays null on Windows
-            for line in f:
-                if line.startswith("VmRSS:"):
-                    current = round(int(line.split()[1]) / 1024, 1)
-                elif line.startswith("VmHWM:"):
-                    peak = round(int(line.split()[1]) / 1024, 1)
-    except OSError:
-        pass
-    return {
-        "status": "ok",
-        "memory_mb": current,            # memory in use right now
-        "peak_memory_mb": peak,          # highest since this process started
-        "sessions_in_memory": len(SESSIONS),
-        "postings_indexed": _postings_collection["collection"].count() if _postings_collection["collection"] else 0,
-    }
 
 
 # ---------------------------------------------------------------------------
