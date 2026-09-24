@@ -99,6 +99,27 @@ def _is_quota(error_text: str) -> bool:
     return "429" in error_text or "quota" in error_text
 
 
+def _is_daily_quota(error_text: str) -> bool:
+    # Daily quota (RPD) exhaustion is truly fatal for the rest of the
+    # day -- retrying is pointless. Google's error includes a quota_id
+    # like "GenerateRequestsPerDayPerProjectPerModel-FreeTier" for this
+    # case, distinct from the per-minute (RPM) case below.
+    return "perday" in error_text.replace(" ", "").replace("_", "").lower()
+
+
+def _extract_retry_delay(error_text: str) -> float:
+    # Google's 429 responses include a retry_delay (e.g. "seconds: 3")
+    # telling us exactly how long to wait before the RPM window resets.
+    # Fall back to a conservative default if we can't parse it.
+    match = re.search(r"retry_delay\s*\{\s*seconds:\s*(\d+)", error_text)
+    if match:
+        return float(match.group(1))
+    match = re.search(r"seconds[\"']?\s*[:=]\s*(\d+)", error_text)
+    if match:
+        return float(match.group(1))
+    return 5.0  # RPM windows are 60s; a few seconds' wait is usually enough
+
+
 def generate_gap_analysis(
     jd_sections: Dict[str, str],
     matched_resume_sections: Dict[str, str],
@@ -178,13 +199,18 @@ def generate_gap_analysis(
             err_text = str(e).lower()
             is_transient = _is_transient(err_text)
             is_quota = _is_quota(err_text)
+            is_daily_quota = is_quota and _is_daily_quota(err_text)
+            # RPM (per-minute) 429s are transient: Google itself tells us
+            # how long to wait via retry_delay, and that window clears on
+            # its own. Only daily quota (RPD) exhaustion is truly fatal.
+            is_rpm_quota = is_quota and not is_daily_quota
 
-            if is_quota or not is_transient or attempt == max_attempts:
-                # quota errors, non-transient errors, or out of
-                # attempts -> stop now, no point spending more budget.
+            if is_daily_quota or (not is_transient and not is_rpm_quota) or attempt == max_attempts:
+                # Daily quota exhaustion, non-transient/non-RPM errors, or
+                # out of attempts -> stop now, no point spending more budget.
                 break
 
-            backoff = backoff_seconds * attempt
+            backoff = _extract_retry_delay(err_text) if is_rpm_quota else backoff_seconds * attempt
             if remaining() - backoff <= 0:
                 # Not enough budget left to sleep AND make another
                 # attempt worth anything -- stop now instead of
